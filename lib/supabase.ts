@@ -28,6 +28,14 @@ export type UserSettings = {
   gemini_api_key: string | null
   ai_provider: 'openai' | 'gemini'
   gemini_model_name: string | null
+  list_order: string[] | null
   created_at: string
   updated_at: string
+}
+
+export type Category = {
+  id: string
+  user_id: string
+  name: string
+  created_at: string
 }

@@ -23,9 +23,11 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
 export async function upsertUserSettings(
   userId: string,
   settings: {
+    nickname?: string | null
     openai_api_key?: string | null
     gemini_api_key?: string | null
     ai_provider?: 'openai' | 'gemini'
+    list_order?: string[] | null
   }
 ): Promise<boolean> {
   console.log('Upserting settings for user:', userId, 'with settings:', settings)

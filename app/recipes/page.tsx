@@ -3,7 +3,9 @@
 import { useEffect, useState, useMemo, ChangeEvent } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getRecipes, createRecipe, deleteRecipe, updateRecipe, updateRecipeOrder } from '@/lib/recipes'
-import type { Recipe } from '@/lib/supabase'
+import { getCategories, createCategory as dbCreateCategory, updateCategory as dbUpdateCategory, deleteCategory as dbDeleteCategory } from '@/lib/categories'
+import { upsertUserSettings } from '@/lib/user-settings'
+import type { Recipe, Category } from '@/lib/supabase'
 import { LogOut, Trash2, Settings, Search, Upload, Plus, GripVertical, CheckSquare, Square, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -65,10 +67,8 @@ const getFaviconUrl = (url: string) => {
   }
 }
 
-type CategoryHeader = {
-  id: string
+type CategoryHeader = Category & {
   type: 'category'
-  name: string
 }
 
 type RecipeItem = Recipe & {
@@ -94,10 +94,10 @@ function SortableCategoryHeader({ category, onDelete, onEdit }: { category: Cate
   }
 
   const handleSave = () => {
-    if (editName.trim()) {
+    if (editName.trim() && editName.trim() !== category.name) {
       onEdit(category.id, editName.trim())
-      setIsEditing(false)
     }
+    setIsEditing(false)
   }
 
   return (
@@ -205,7 +205,7 @@ function SortableRecipeItem({
   return (
     <AccordionItem ref={setNodeRef} style={style} key={recipe.id} value={`item-${recipe.id}`} className={`border rounded-lg shadow-sm transition-all duration-200 ${isSelected ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:shadow-md'}`}>
       <div className="flex items-center justify-between pr-2">
-        <div className="flex items-center flex-1">
+        <div className="flex items-center flex-1 min-w-0">
           {isSelectionMode ? (
             <div className="px-3 py-4 cursor-pointer" onClick={() => onToggleSelect(recipe.id)}>
               {isSelected ? (
@@ -219,38 +219,42 @@ function SortableRecipeItem({
               <GripVertical className="h-5 w-5 text-gray-400" />
             </div>
           )}
-          <AccordionTrigger className="flex-1 pr-6 py-4 hover:no-underline">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              {faviconUrl && (
-                <img src={faviconUrl} alt="" className="h-6 w-6 rounded flex-shrink-0" />
-              )}
-              {editingName ? (
-                <Input
-                  value={tempName}
-                  onChange={(e) => setTempName(e.target.value)}
-                  onBlur={handleSaveName}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveName()
-                    if (e.key === 'Escape') {
-                      setTempName(recipe.name)
-                      setEditingName(false)
-                    }
-                  }}
-                  autoFocus
-                  className="fluid-text-base font-semibold bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <span
-                  className="fluid-text-base font-semibold text-left truncate line-clamp-1 cursor-text"
-                  onDoubleClick={(e) => {
-                    e.stopPropagation()
-                    setEditingName(true)
-                  }}
-                >
-                  {recipe.name}
-                </span>
-              )}
+          <AccordionTrigger className="flex-1 pr-6 py-4 hover:no-underline w-full text-left">
+            <div className="w-full table table-fixed">
+              <div className="table-cell w-8">
+                {faviconUrl && (
+                  <img src={faviconUrl} alt="" className="h-6 w-6 rounded" />
+                )}
+              </div>
+              <div className="table-cell align-middle">
+                {editingName ? (
+                  <Input
+                    value={tempName}
+                    onChange={(e) => setTempName(e.target.value)}
+                    onBlur={handleSaveName}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveName()
+                      if (e.key === 'Escape') {
+                        setTempName(recipe.name)
+                        setEditingName(false)
+                      }
+                    }}
+                    autoFocus
+                    className="fluid-text-base font-semibold bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <p
+                    className="truncate font-semibold fluid-text-base cursor-text"
+                    onDoubleClick={(e) => {
+                      e.stopPropagation()
+                      setEditingName(true)
+                    }}
+                  >
+                    {recipe.name}
+                  </p>
+                )}
+              </div>
             </div>
           </AccordionTrigger>
         </div>
@@ -351,6 +355,7 @@ export default function HomePage() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [categories, setCategories] = useState<CategoryHeader[]>([])
   const [listItems, setListItems] = useState<ListItem[]>([])
+  const [listOrder, setListOrder] = useState<string[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
@@ -377,49 +382,14 @@ export default function HomePage() {
     })
   )
 
-  // Load categories from localStorage
+  // Rebuild listItems when recipes, categories, or DB listOrder change
   useEffect(() => {
-    if (userId) {
-      const stored = localStorage.getItem(`categories_${userId}`)
-      if (stored) {
-        try {
-          const data = JSON.parse(stored)
-          setCategories(data.categories || [])
-        } catch (e) {
-          console.error('Failed to parse categories:', e)
-        }
-      }
-    }
-  }, [userId])
-
-  // Save categories to localStorage
-  useEffect(() => {
-    if (userId && categories.length > 0) {
-      localStorage.setItem(`categories_${userId}`, JSON.stringify({
-        categories,
-      }))
-    }
-  }, [categories, userId])
-
-  // Rebuild listItems when recipes or categories change
-  useEffect(() => {
-    const stored = localStorage.getItem(`listOrder_${userId}`)
-    let order: string[] = []
-
-    if (stored) {
-      try {
-        order = JSON.parse(stored)
-      } catch (e) {
-        console.error('Failed to parse list order:', e)
-      }
-    }
-
-    // Create a map of all items
+    const order = listOrder || []
+    
     const itemsMap = new Map<string, ListItem>()
-    categories.forEach(cat => itemsMap.set(cat.id, cat))
+    categories.forEach(cat => itemsMap.set(cat.id, { ...cat, type: 'category' }))
     recipes.forEach(recipe => itemsMap.set(recipe.id, { ...recipe, type: 'recipe' }))
 
-    // Build list based on saved order
     const orderedItems: ListItem[] = []
     order.forEach(id => {
       const item = itemsMap.get(id)
@@ -429,11 +399,10 @@ export default function HomePage() {
       }
     })
 
-    // Add remaining items (new recipes/categories)
     itemsMap.forEach(item => orderedItems.push(item))
 
     setListItems(orderedItems)
-  }, [recipes, categories, userId])
+  }, [recipes, categories, listOrder])
 
   useEffect(() => { checkUser() }, [])
 
@@ -446,24 +415,28 @@ export default function HomePage() {
     }
     setUserId(user.id)
 
-    // ニックネームを取得
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('nickname')
+      .select('nickname, list_order')
       .eq('user_id', user.id)
       .single()
 
-    if (settings?.nickname) {
+    if (settings) {
       setNickname(settings.nickname)
+      setListOrder(settings.list_order || [])
     }
 
-    loadRecipes(user.id)
+    loadInitialData(user.id)
   }
 
-  const loadRecipes = async (uid: string) => {
+  const loadInitialData = async (uid: string) => {
     setLoading(true)
-    const data = await getRecipes(uid)
-    setRecipes(data)
+    const [recipeData, categoryData] = await Promise.all([
+      getRecipes(uid),
+      getCategories(uid)
+    ])
+    setRecipes(recipeData)
+    setCategories(categoryData.map(c => ({ ...c, type: 'category' })))
     setLoading(false)
   }
 
@@ -497,38 +470,39 @@ export default function HomePage() {
     const newListItems = arrayMove(listItems, oldIndex, newIndex)
     setListItems(newListItems)
 
-    // Save the new order to localStorage
-    if (userId) {
-      localStorage.setItem(`listOrder_${userId}`, JSON.stringify(newListItems.map(item => item.id)))
-    }
+    const newOrder = newListItems.map(item => item.id)
+    setListOrder(newOrder)
 
-    // Update recipe order in database
+    if (userId) {
+      await upsertUserSettings(userId, { list_order: newOrder })
+    }
+    
     const recipeIds = newListItems.filter(item => item.type === 'recipe').map(item => item.id)
     await updateRecipeOrder(recipeIds)
   }
 
-  const handleAddCategory = () => {
-    const newCategory: CategoryHeader = {
-      id: `category_${Date.now()}`,
-      type: 'category',
-      name: '新しいカテゴリー',
+  const handleAddCategory = async () => {
+    if (!userId) return
+    const newCategory = await dbCreateCategory(userId, '新しいカテゴリー')
+    if (newCategory) {
+      setCategories([...categories, { ...newCategory, type: 'category' }])
     }
-    setCategories([...categories, newCategory])
-    setListItems([...listItems, newCategory])
   }
 
-  const handleDeleteCategory = (id: string) => {
+  const handleDeleteCategory = async (id: string) => {
     if (confirm('このカテゴリーを削除しますか？')) {
-      setCategories(categories.filter(c => c.id !== id))
-      setListItems(listItems.filter(item => item.id !== id))
+      const success = await dbDeleteCategory(id)
+      if (success) {
+        setCategories(categories.filter(c => c.id !== id))
+      }
     }
   }
 
-  const handleEditCategory = (id: string, newName: string) => {
-    setCategories(categories.map(c => c.id === id ? { ...c, name: newName } : c))
-    setListItems(listItems.map(item =>
-      item.type === 'category' && item.id === id ? { ...item, name: newName } : item
-    ))
+  const handleEditCategory = async (id: string, newName: string) => {
+    const updatedCategory = await dbUpdateCategory(id, newName)
+    if (updatedCategory) {
+      setCategories(categories.map(c => c.id === id ? { ...updatedCategory, type: 'category' } : c))
+    }
   }
 
   const toggleSelectionMode = () => {
@@ -561,11 +535,16 @@ export default function HomePage() {
     if (selectedIds.size === 0) return
     if (!confirm(`${selectedIds.size}件のレシピを削除しますか？`)) return
 
-    const deletePromises = Array.from(selectedIds).map(id => deleteRecipe(id))
-    await Promise.all(deletePromises)
+    const recipeIdsToDelete = Array.from(selectedIds).filter(id => listItems.find(item => item.id === id && item.type === 'recipe'))
+    const categoryIdsToDelete = Array.from(selectedIds).filter(id => listItems.find(item => item.id === id && item.type === 'category'))
+
+    const recipeDeletePromises = recipeIdsToDelete.map(id => deleteRecipe(id))
+    const categoryDeletePromises = categoryIdsToDelete.map(id => dbDeleteCategory(id))
+    
+    await Promise.all([...recipeDeletePromises, ...categoryDeletePromises])
 
     setRecipes(recipes.filter(r => !selectedIds.has(r.id)))
-    setListItems(listItems.filter(item => !selectedIds.has(item.id)))
+    setCategories(categories.filter(c => !selectedIds.has(c.id)))
     setSelectedIds(new Set())
     setIsSelectionMode(false)
   }
@@ -653,7 +632,7 @@ export default function HomePage() {
         }
       } else if (result.type === 'summary') {
         setUploadSuccess(result.data.message)
-        await loadRecipes(userId) // Refresh the list
+        if (userId) await loadInitialData(userId)
       } else {
         throw new Error('Invalid response type from server.')
       }
@@ -716,13 +695,13 @@ export default function HomePage() {
               <Button variant="ghost" size="sm" onClick={deselectAll} className="h-8">選択解除</Button>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="destructive" size="sm" onClick={deleteSelected} disabled={selectedIds.size === 0} className="h-8">
-                <Trash2 className="h-4 w-4 mr-1" />
-                削除
+              <Button variant="destructive" size="sm" onClick={deleteSelected} disabled={selectedIds.size === 0} className="h-8 px-3">
+                <Trash2 className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">削除</span>
               </Button>
-              <Button variant="ghost" size="sm" onClick={toggleSelectionMode} className="h-8">
-                <X className="h-4 w-4 mr-1" />
-                キャンセル
+              <Button variant="ghost" size="sm" onClick={toggleSelectionMode} className="h-8 px-3">
+                <X className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">キャンセル</span>
               </Button>
             </div>
           </div>
@@ -833,10 +812,7 @@ export default function HomePage() {
         <Button
           variant="default"
           className="h-12 px-6 shadow-lg rounded-full transition-transform duration-200 hover:scale-105"
-          onClick={() => {
-            setMenuOpen(false)
-            handleAddCategory()
-          }}
+          onClick={handleAddCategory}
         >
           カテゴリーを追加
         </Button>
