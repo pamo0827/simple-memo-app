@@ -1,41 +1,38 @@
-# Cookie
+# Cook-Book
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/yoshi0827101328-9306s-projects/recipe-database-cookie-app)  
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/V3UbwrvV5vR)
+AIによるシンプルな料理レシピ管理アプリ。あらゆるサイトや料理本、手書きのメモからレシピを簡単に取り込み、統一されたフォーマットで管理できます。
 
-## 概要
-
-**Cookie** は、料理レシピを登録・管理・検索できるメモアプリケーションです。  
-費用やURL、味の感想、評価点数などの多様な情報を記録でき、  
-レシピ名・料理名・評価点数などを条件に、目的のレシピをすぐに見つけることができます。
+![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white)
 
 ---
 
-## 特徴
+## 主な機能
 
-- 🗃️ **MySQL** を用いたリレーショナルデータベース設計と CRUD 操作
-- 🔍 **SQL クエリ** による複数条件での柔軟な検索・フィルタリング
-- 📱 **HTML/CSS/JavaScript** を用いたレスポンシブなフォームUI構築
-
----
-
-## 機能と技術詳細
-
-### 1. 料理レシピ登録・検索 Web アプリケーション
-
-- **目的**  
-  自作レシピを投稿・管理できるデータベース連動型アプリ。設計から実装まで個人開発。
-
-- **実装内容**
-  - **データベース設計**  
-    レシピ名、手順、費用、味の感想、評価点数など、多様な情報を格納可能なスキーマを構築。
-  - **検索機能**  
-    キーワード（料理名・レシピ名）や評価点数など、複数の条件を使った絞り込み検索やソート処理を SQL で実装。
+- **AIによるレシピ自動抽出**:
+  - **URLから**: レシピサイトのURLを貼り付けるだけで、材料や手順をAIが自動で解析・整形して保存します。
+  - **画像から**: 料理本や手書きのメモを写真に撮るだけで、AIが文字を認識してレシピをデータ化します。
+- **直感的なUI**: ドラッグ＆ドロップでレシピの表示順を自由に変更できます。
+- **ユーザーランキング**: レシピ登録数に基づいたユーザーランキングを表示します。
+- **柔軟な設定**: ニックネームやパスワードをいつでも変更できます。
 
 ---
 
-## デプロイ
+## 技術スタック
 
-アプリは以下のURLで公開中です：
+- **フレームワーク**: Next.js (App Router), React
+- **言語**: TypeScript
+- **スタイリング**: Tailwind CSS, shadcn/ui
+- **バックエンド**: Supabase (Auth, Postgres, Database Functions)
+- **AI**: Google Gemini / OpenAI (ユーザーがAPIキーを設定して選択可能)
 
-🔗 **[https://vercel.com/yoshi0827101328-9306s-projects/recipe-database-cookie-app](https://vercel.com/yoshi0827101328-9306s-projects/recipe-database-cookie-app)**
+## テストユーザー
+
+すぐにアプリを試せるテストユーザーを用意しています。
+
+- **Email**: `test@mail.com`
+- **Password**: `weqho8-vIkkew-sojbas`
+
+ランディングページの「テストユーザーでログイン」リンクから、情報が自動入力された状態でログインできます。
