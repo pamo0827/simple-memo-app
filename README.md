@@ -9,8 +9,6 @@ AIによるシンプルな料理レシピ管理アプリ。あらゆるサイト
 
 ---
 
-## （とりあえずの）デプロイ先
-
 https://recipe-database-cooki-git-303e59-yoshi0827101328-9306s-projects.vercel.app/
 
 ## 主な機能
