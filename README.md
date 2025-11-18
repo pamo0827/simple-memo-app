@@ -75,37 +75,6 @@ APIキー未設定や読み取り失敗時でも、URLを保存した基本メ�
 
 ---
 
-## テストユーザー
-
-すぐにアプリを試せるテストユーザーを用意しています。
-
-- **Email**: `test@mail.com`
-- **Password**: `weqho8-vIkkew-sojbas`
-
-ランディングページの「テストユーザーでログイン」リンクから、情報が自動入力された状態でログインできます。
-
----
-
-## ローカル開発
-
-```bash
-# 依存関係のインストール
-npm install
-
-# 環境変数の設定
-# .env.local ファイルを作成し、以下を設定:
-# NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-# NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-# SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-# 開発サーバーの起動
-npm run dev
-```
-
-http://localhost:3000 でアプリが起動します。
-
----
-
 ## 特徴的な実装
 
 ### フォールバック処理
