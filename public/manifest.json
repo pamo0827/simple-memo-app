@@ -1,6 +1,6 @@
 {
-  "name": "レシピメモ",
-  "short_name": "レシピ",
+  "name": "MEMOTTO",
+  "short_name": "MEMOTTO",
   "description": "シンプルなレシピ管理アプリ",
   "start_url": "/",
   "display": "standalone",

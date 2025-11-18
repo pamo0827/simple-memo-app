@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Noto_Sans_JP } from 'next/font/google'
 import './globals.css'
+import 'react-tweet/theme.css'
 
 const notoSansJP = Noto_Sans_JP({
   subsets: ['latin'],
@@ -10,13 +11,13 @@ const notoSansJP = Noto_Sans_JP({
 })
 
 export const metadata: Metadata = {
-  title: 'Cook-Book',
-  description: 'AIによるシンプルなレシピ管理アプリ',
+  title: 'MEMOTTO',
+  description: 'AIによるシンプルなメモ管理アプリ',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Cook-Book',
+    title: 'MEMOTTO',
   },
 }
 

@@ -27,7 +27,6 @@ export async function createRecipe(userId: string, recipe: RecipeInput): Promise
   if (error) {
     console.error('レシピ作成エラー:', error)
     console.error('Error details:', JSON.stringify(error, null, 2))
-    console.error('Attempted to insert:', { ...recipe, user_id: userId })
     return null
   }
 
@@ -81,4 +80,33 @@ export async function updateRecipeOrder(recipeIds: string[]): Promise<boolean> {
   }
 
   return true
+}
+
+export async function getPublicRecipesByUserPublicId(userPublicId: string): Promise<Recipe[] | null> {
+  // user_settingsからuser_idを取得
+  const { data: userSettings, error: userSettingsError } = await supabase
+    .from('user_settings')
+    .select('user_id, are_recipes_public')
+    .eq('public_share_id', userPublicId)
+    .single()
+
+  if (userSettingsError || !userSettings || !userSettings.are_recipes_public) {
+    console.error('ユーザー設定取得エラーまたは公開設定がオフ:', userSettingsError)
+    return null
+  }
+
+  // user_idに紐づく公開レシピを取得
+  const { data: recipes, error: recipesError } = await supabase
+    .from('recipes')
+    .select('id, name, description, ingredients, instructions, source_url, created_at')
+    .eq('user_id', userSettings.user_id)
+    .order('display_order', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false })
+
+  if (recipesError) {
+    console.error('公開レシピ取得エラー:', recipesError)
+    return null
+  }
+
+  return recipes
 }

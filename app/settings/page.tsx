@@ -8,16 +8,6 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-
-type AiProvider = 'openai' | 'gemini'
-
 export default function SettingsPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -33,9 +23,7 @@ export default function SettingsPage() {
   const [passwordSaving, setPasswordSaving] = useState(false)
   const [passwordMessage, setPasswordMessage] = useState('')
 
-  const [openaiApiKey, setOpenaiApiKey] = useState('')
   const [geminiApiKey, setGeminiApiKey] = useState('')
-  const [aiProvider, setAiProvider] = useState<AiProvider>('openai')
   const [apiKeysSaving, setApiKeysSaving] = useState(false)
   const [apiKeysMessage, setApiKeysMessage] = useState('')
 
@@ -57,9 +45,7 @@ export default function SettingsPage() {
     const settings = await getUserSettings(uid)
     if (settings) {
       setNickname(settings.nickname || '')
-      setOpenaiApiKey(settings.openai_api_key || '')
       setGeminiApiKey(settings.gemini_api_key || '')
-      setAiProvider(settings.ai_provider || 'openai')
     }
     setLoading(false)
   }
@@ -113,9 +99,7 @@ export default function SettingsPage() {
     setApiKeysSaving(true)
     setApiKeysMessage('')
     const success = await upsertUserSettings(userId, {
-      openai_api_key: openaiApiKey,
       gemini_api_key: geminiApiKey,
-      ai_provider: aiProvider,
     })
     if (success) {
       setApiKeysMessage('APIキー設定を保存しました')
@@ -196,29 +180,10 @@ export default function SettingsPage() {
           <form onSubmit={handleApiKeysSave} className="space-y-6">
             <h2 className="text-lg font-semibold">AI設定</h2>
             <div className="space-y-2">
-              <Label htmlFor="ai-provider">AIプロバイダー</Label>
-              <Select value={aiProvider} onValueChange={(value: AiProvider) => setAiProvider(value)}>
-                <SelectTrigger id="ai-provider"><SelectValue placeholder="使用するAIを選択" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="openai">OpenAI</SelectItem>
-                  <SelectItem value="gemini">Google Gemini</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="geminiApiKey">Gemini APIキー</Label>
+              <Input id="geminiApiKey" type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="AIzaSy..." />
+              <p className="text-xs text-gray-500"><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a> から取得</p>
             </div>
-            {aiProvider === 'openai' && (
-              <div className="space-y-2">
-                <Label htmlFor="openaiApiKey">OpenAI APIキー</Label>
-                <Input id="openaiApiKey" type="password" value={openaiApiKey} onChange={(e) => setOpenaiApiKey(e.target.value)} placeholder="sk-proj-..." />
-                <p className="text-xs text-gray-500"><a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline">OpenAI Platform</a> から取得</p>
-              </div>
-            )}
-            {aiProvider === 'gemini' && (
-              <div className="space-y-2">
-                <Label htmlFor="geminiApiKey">Gemini APIキー</Label>
-                <Input id="geminiApiKey" type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="AIzaSy..." />
-                <p className="text-xs text-gray-500"><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a> から取得</p>
-              </div>
-            )}
             {apiKeysMessage && <p className="text-sm text-green-600">{apiKeysMessage}</p>}
             <Button type="submit" disabled={apiKeysSaving}>
               {apiKeysSaving ? '保存中...' : 'APIキーを保存'}
