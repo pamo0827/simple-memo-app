@@ -2,12 +2,9 @@ import { notFound } from 'next/navigation'
 import { getPublicRecipesByUserPublicId } from '@/lib/recipes'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Tweet } from 'react-tweet'
-import YouTube from 'react-youtube'
-import { extractTweetId, extractYouTubeId, isTwitterUrl, isYouTubeUrl } from '@/lib/embed-helpers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator' // Separatorを追加
-import { FileText } from 'lucide-react' // FileText をインポート
+import { FileText } from 'lucide-react'
+import { EmbedPreview } from '@/components/share/EmbedPreview'
 
 interface SharePageProps {
   params: {
@@ -62,28 +59,7 @@ export default async function SharePage({ params }: SharePageProps) {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* 埋め込みプレビュー */}
-                {recipe.source_url && isTwitterUrl(recipe.source_url) && extractTweetId(recipe.source_url) && (
-                  <div className="flex justify-center my-4 max-w-md mx-auto">
-                    <Tweet id={extractTweetId(recipe.source_url)!} />
-                  </div>
-                )}
-
-                {recipe.source_url && isYouTubeUrl(recipe.source_url) && extractYouTubeId(recipe.source_url) && (
-                  <div className="flex justify-center my-4">
-                    <YouTube
-                      videoId={extractYouTubeId(recipe.source_url)!}
-                      opts={{
-                        width: '100%',
-                        maxWidth: '400',
-                        playerVars: {
-                          modestbranding: 1,
-                          rel: 0,
-                        },
-                      }}
-                      className="max-w-full"
-                    />
-                  </div>
-                )}
+                {recipe.source_url && <EmbedPreview sourceUrl={recipe.source_url} />}
 
                 {recipe.ingredients && (
                   <div className="border-l-4 border-yellow-500 pl-5 py-1">
