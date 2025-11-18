@@ -75,35 +75,3 @@ export function isYouTubeUrl(url: string): boolean {
     return false
   }
 }
-
-/**
- * URLがInstagramのURLかどうかを判定
- */
-export function isInstagramUrl(url: string): boolean {
-  try {
-    const urlObj = new URL(url)
-    return urlObj.hostname === 'instagram.com' ||
-           urlObj.hostname === 'www.instagram.com'
-  } catch {
-    return false
-  }
-}
-
-/**
- * Instagram投稿のURLを埋め込み用URLに変換
- */
-export function getInstagramEmbedUrl(url: string): string | null {
-  try {
-    const urlObj = new URL(url)
-    if (!isInstagramUrl(url)) return null
-
-    // /p/ または /reel/ のパスを探す
-    const match = urlObj.pathname.match(/\/(p|reel)\/([^/?]+)/)
-    if (!match) return null
-
-    return `https://www.instagram.com/${match[1]}/${match[2]}/embed`
-  } catch {
-    return null
-  }
-}
-

@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // エラーページの検出
-    // X/Twitter、Instagram等のサイトは、サーバーサイドからのアクセスに対して
+    // X/Twitter等のサイトは、サーバーサイドからのアクセスに対して
     // JavaScriptエラーページを返すことがある
     // このような場合、エラーページの内容を解析せず、基本的なメモを返す
     const hasJavaScript = text.includes('JavaScript')

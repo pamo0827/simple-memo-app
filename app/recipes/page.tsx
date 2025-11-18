@@ -13,6 +13,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { CSS } from '@dnd-kit/utilities'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+
 import { Tweet } from 'react-tweet'
 import YouTube from 'react-youtube'
 
@@ -263,13 +264,10 @@ export default function HomePage() {
     setScrapeError('')
     try {
       // URLの種類を判定
-      const isInstagram = url.includes('instagram.com')
       const isYouTube = url.includes('youtube.com') || url.includes('youtu.be')
 
       let apiEndpoint = '/api/scrape-recipe'
-      if (isInstagram) {
-        apiEndpoint = '/api/scrape-instagram'
-      } else if (isYouTube) {
+      if (isYouTube) {
         apiEndpoint = '/api/scrape-youtube'
       }
 

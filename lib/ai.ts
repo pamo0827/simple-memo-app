@@ -1,4 +1,6 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenerativeAI, ModelParams, Content } from '@google/generative-ai'
+
+const models = ['gemini-2.5-flash', 'gemini-2.5-pro'];
 
 const systemPrompt = `あなたは、与えられたウェブページやテキストの内容を分析するアシスタントです。
 
@@ -17,26 +19,51 @@ const systemPrompt = `あなたは、与えられたウェブページやテキ�
 }
 
 **内容がレシピではない場合：**
-テキストの要点を抽出し、重要なポイントをまとめたマークダウン形式のテキストを返してください。出力は以下のJSON形式にしてください。
+テキストの内容を要約してください。
+要約の先頭には、内容を最もよく表すタイトルを \`## \` を付けて記述してください。
+出力は以下のJSON形式で、マークダウン形式の要約を返してください。
 
 {
   "type": "summary",
-  "data": "## 要約\n\n- このテキストは...についてです。\n- 重要な点は..."
+  "data": "## {生成したタイトル}\n\n- 要約の本文..."
 }
 
 **どちらでもない、またはエラーの場合：**
 {"type": "error", "data": "内容を処理できませんでした。"} を返してください。`
 
-async function callGemini(apiKey: string, text: string, systemInstruction: string) {
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction,
-  })
-  const result = await model.generateContent(`以下のテキストを処理してください：\n\n${text}`)
-  const response = await result.response
-  // Gemini may return the JSON wrapped in markdown, so we clean it
-  return response.text().replace(/```json\n?/, '').replace(/```$/, '')
+async function callGenerativeAI(apiKey: string, modelParams: Omit<ModelParams, 'model'>, content: Content) {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  let lastError: any;
+
+  for (const modelName of models) {
+    try {
+      const model = genAI.getGenerativeModel({ ...modelParams, model: modelName });
+      const result = await model.generateContent(content);
+      const response = await result.response;
+      return response.text();
+    } catch (error: any) {
+      lastError = error;
+      // 503 or similar overload errors can be checked here if the SDK provides structured errors
+      if (error.message.includes('503') || error.message.toLowerCase().includes('overloaded')) {
+        console.warn(`Model ${modelName} is overloaded, trying next model...`);
+        continue; // Try the next model
+      }
+      // For other errors, rethrow immediately
+      throw error;
+    }
+  }
+  // If all models fail, throw the last recorded error
+  throw lastError;
+}
+
+
+function extractJson(text: string): string | null {
+  const jsonRegex = /\{[\s\S]*\}/;
+  const match = text.match(jsonRegex);
+  if (match) {
+    return match[0];
+  }
+  return null;
 }
 
 export async function processText(text: string, apiKey: string) {
@@ -44,23 +71,42 @@ export async function processText(text: string, apiKey: string) {
     throw new Error('Input text is empty.')
   }
 
+  let resultFromAI: string | undefined;
   try {
-    const result = await callGemini(apiKey, text, systemPrompt)
+    resultFromAI = await callGenerativeAI(
+      apiKey,
+      { systemInstruction: systemPrompt },
+      `以下のテキストを処理してください：\n\n${text}`
+    );
 
-    if (!result) {
+    if (!resultFromAI) {
       throw new Error('AI model did not return a result.')
     }
 
-    const parsedResult = JSON.parse(result)
+    const jsonString = extractJson(resultFromAI);
+
+    if (!jsonString) {
+      console.error('Could not extract JSON from AI response. Response was:', resultFromAI);
+      throw new Error('AI returned an invalid format.');
+    }
+
+    const parsedResult = JSON.parse(jsonString)
 
     if (parsedResult.type === 'error' || !parsedResult.data) {
-      throw new Error(parsedResult.data || 'Failed to process content.')
+      throw new Error(parsedResult.data || 'AI failed to process content.')
     }
 
     return parsedResult
   } catch (error) {
     console.error('Error during text processing:', error)
-    throw new Error('Failed to process text.')
+    if (error instanceof SyntaxError) {
+      // JSON.parse failed
+      console.error('Failed to parse AI response as JSON. Response was:', resultFromAI);
+      throw new Error('AI returned an invalid format. Please try again.');
+    }
+    
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred'
+    throw new Error(`Failed to process text: ${errorMessage}`)
   }
 }
 
@@ -88,44 +134,43 @@ const imageSystemPrompt = `あなたは画像から情報を抽出するアシ�
 **どちらでもない、またはエラーの場合：**
 {"type": "error", "data": "内容を処理できませんでした。"} を返してください。`
 
-async function extractFromImageWithGemini(apiKey: string, base64Image: string, additionalText?: string) {
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction: imageSystemPrompt,
-  })
-
-  const prompt = additionalText
-    ? `この画像から情報を抽出してください。\n\n投稿の説明文:\n${additionalText}`
-    : 'この画像から情報を抽出してください。'
-
-  const result = await model.generateContent([
-    prompt,
-    {
-      inlineData: {
-        data: base64Image,
-        mimeType: 'image/jpeg',
-      },
-    },
-  ])
-
-  const response = await result.response
-  return response.text().replace(/```json\n?/, '').replace(/```$/, '')
-}
-
 export async function processImage(base64Image: string, apiKey: string, caption?: string) {
   if (!base64Image) {
     throw new Error('Image data is empty.')
   }
 
   try {
-    const result = await extractFromImageWithGemini(apiKey, base64Image, caption)
+    const prompt = caption
+    ? `この画像から情報を抽出してください。\n\n投稿の説明文:\n${caption}`
+    : 'この画像から情報を抽出してください。'
+
+    const content: Content = [
+      prompt,
+      {
+        inlineData: {
+          data: base64Image,
+          mimeType: 'image/jpeg',
+        },
+      },
+    ];
+
+    const result = await callGenerativeAI(
+      apiKey,
+      { systemInstruction: imageSystemPrompt },
+      content
+    );
 
     if (!result) {
       throw new Error('AI model did not return a result.')
     }
 
-    const parsedResult = JSON.parse(result)
+    const jsonString = extractJson(result);
+    if (!jsonString) {
+      console.error('Could not extract JSON from AI response. Response was:', result);
+      throw new Error('AI returned an invalid format.');
+    }
+
+    const parsedResult = JSON.parse(jsonString)
 
     if (parsedResult.type === 'error' || !parsedResult.data) {
       throw new Error(parsedResult.data || 'Failed to process image.')
@@ -134,7 +179,8 @@ export async function processImage(base64Image: string, apiKey: string, caption?
     return parsedResult
   } catch (error) {
     console.error('Error during image processing:', error)
-    throw new Error('Failed to process image.')
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred'
+    throw new Error(`Failed to process image: ${errorMessage}`)
   }
 }
 
@@ -162,40 +208,39 @@ const videoSystemPrompt = `あなたは動画から情報を抽出するアシ�
 **どちらでもない、またはエラーの場合：**
 {"type": "error", "data": "内容を処理できませんでした。"} を返してください。`
 
-async function extractFromVideoWithGemini(apiKey: string, videoUrl: string) {
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction: videoSystemPrompt,
-  })
-
-  const result = await model.generateContent([
-    'この動画から情報を抽出してください。',
-    {
-      fileData: {
-        fileUri: videoUrl,
-        mimeType: 'video/mp4',
-      },
-    },
-  ])
-
-  const response = await result.response
-  return response.text().replace(/```json\n?/, '').replace(/```$/, '')
-}
-
 export async function processVideo(videoUrl: string, apiKey: string) {
   if (!videoUrl) {
     throw new Error('Video URL is empty.')
   }
 
   try {
-    const result = await extractFromVideoWithGemini(apiKey, videoUrl)
+    const content: Content = [
+      'この動画から情報を抽出してください。',
+      {
+        fileData: {
+          fileUri: videoUrl,
+          mimeType: 'video/mp4',
+        },
+      },
+    ];
+
+    const result = await callGenerativeAI(
+      apiKey,
+      { systemInstruction: videoSystemPrompt },
+      content
+    );
 
     if (!result) {
       throw new Error('AI model did not return a result.')
     }
 
-    const parsedResult = JSON.parse(result)
+    const jsonString = extractJson(result);
+    if (!jsonString) {
+      console.error('Could not extract JSON from AI response. Response was:', result);
+      throw new Error('AI returned an invalid format.');
+    }
+
+    const parsedResult = JSON.parse(jsonString)
 
     if (parsedResult.type === 'error' || !parsedResult.data) {
       throw new Error(parsedResult.data || 'Failed to process video.')
@@ -204,6 +249,7 @@ export async function processVideo(videoUrl: string, apiKey: string) {
     return parsedResult
   } catch (error) {
     console.error('Error during video processing:', error)
-    throw new Error('Failed to process video.')
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred'
+    throw new Error(`Failed to process video: ${errorMessage}`)
   }
 }

@@ -10,8 +10,7 @@ import remarkGfm from 'remark-gfm'
 import { Tweet } from 'react-tweet'
 import YouTube from 'react-youtube'
 import {
-  extractTweetId, extractYouTubeId, isTwitterUrl, isYouTubeUrl,
-  isInstagramUrl, getInstagramEmbedUrl
+  extractTweetId, extractYouTubeId, isTwitterUrl, isYouTubeUrl
 } from '@/lib/embed-helpers'
 import {
   AccordionContent,
@@ -269,20 +268,6 @@ export function SortableRecipeItem({
                     },
                   }}
                   className="max-w-full"
-                />
-              </div>
-            )}
-
-            {/* Instagram埋め込み */}
-            {recipe.source_url && isInstagramUrl(recipe.source_url) && getInstagramEmbedUrl(recipe.source_url) && (
-              <div className="flex justify-center my-4">
-                <iframe
-                  src={getInstagramEmbedUrl(recipe.source_url)!}
-                  width="400"
-                  height="600"
-                  allowTransparency={true}
-                  className="max-w-full border-0"
-                  style={{ overflow: 'hidden' }}
                 />
               </div>
             )}

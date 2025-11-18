@@ -67,7 +67,7 @@ export default function LandingPageClient({
               MEMOTTO
             </h1>
             <p className="mt-12 text-lg text-gray-700">
-              Geminiによるシンプルなメモ管理アプリ
+              Geminiによるシンプルなメモアプリ
             </p>
             <Button
               size="lg"
@@ -92,6 +92,9 @@ export default function LandingPageClient({
                   <p className="mt-2 text-base text-gray-600">
                     SNSやWebサイトのURLを貼るだけで、内容を自動で抽出します。
                   </p>
+                  <p className="mt-2 text-sm text-gray-500">
+                    ※ X（旧Twitter）やInstagramは技術的な制約により、内容の自動抽出はできません。URLと基本的なメモとして保存されます。
+                  </p>
                 </div>
               </div>
               <div className="flex items-start">
@@ -114,6 +117,133 @@ export default function LandingPageClient({
                   <p className="mt-2 text-base text-gray-600">
                     取り込んだ内容は、いつでも自由に見やすく編集できます。
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 動作確認済みサイト */}
+            <div className="mt-20 rounded-lg bg-white px-6 pt-10 pb-16 shadow-md">
+              <h3 className="text-center text-lg font-semibold text-gray-800">
+                動作確認済みサイト
+              </h3>
+              <div className="mt-6 space-y-4 text-sm text-gray-700">
+                {/* 動画 */}
+                <div>
+                  <p className="font-medium text-gray-800 mb-2 text-center">動画サイト</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    <div className="flex items-center gap-1.5 rounded bg-white px-2 py-1 shadow-sm">
+                      <img
+                        src="https://www.google.com/s2/favicons?domain=youtube.com&sz=16"
+                        alt="YouTube"
+                        className="h-4 w-4"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
+                      />
+                      <span className="text-xs">YouTube</span> <p className="text-xs text-gray-500 mt-1 text-center">※字幕・概要欄から内容を抽出</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* レシピ */}
+                <div>
+                  <p className="font-medium text-gray-800 mb-2 text-center">レシピサイト</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {[
+                      { name: 'Cookpad', domain: 'cookpad.com' },
+                      { name: 'クラシル', domain: 'kurashiru.com' },
+                      { name: 'DELISH KITCHEN', domain: 'delishkitchen.tv' },
+                    ].map((site) => (
+                      <div key={site.domain} className="flex items-center gap-1.5 rounded bg-white px-2 py-1 shadow-sm">
+                        <img
+                          src={`https://www.google.com/s2/favicons?domain=${site.domain}&sz=16`}
+                          alt={site.name}
+                          className="h-4 w-4"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                        <span className="text-xs">{site.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 学習 */}
+                <div>
+                  <p className="font-medium text-gray-800 mb-2 text-center">学習サイト</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {[
+                      { name: 'マナビタイムズ', domain: 'manabitimes.jp' },
+                      { name: 'パスナビ', domain: 'passnavi.obunsha.co.jp' },
+                      { name: 'STUDY HACKER', domain: 'studyhacker.net' },
+                    ].map((site) => (
+                      <div key={site.domain} className="flex items-center gap-1.5 rounded bg-white px-2 py-1 shadow-sm">
+                        <img
+                          src={`https://www.google.com/s2/favicons?domain=${site.domain}&sz=16`}
+                          alt={site.name}
+                          className="h-4 w-4"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                        <span className="text-xs">{site.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ゲーム攻略 */}
+                <div>
+                  <p className="font-medium text-gray-800 mb-2 text-center">ゲーム攻略サイト</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {[
+                      { name: 'GameWith', domain: 'gamewith.jp' },
+                      { name: 'Game8', domain: 'game8.jp' },
+                      { name: '神ゲー攻略', domain: 'kamigame.jp' },
+                    ].map((site) => (
+                      <div key={site.domain} className="flex items-center gap-1.5 rounded bg-white px-2 py-1 shadow-sm">
+                        <img
+                          src={`https://www.google.com/s2/favicons?domain=${site.domain}&sz=16`}
+                          alt={site.name}
+                          className="h-4 w-4"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                        <span className="text-xs">{site.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 技術記事 */}
+                <div>
+                  <p className="font-medium text-gray-800 mb-2 text-center">技術記事サイト</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {[
+                      { name: 'Qiita', domain: 'qiita.com' },
+                      { name: 'Zenn', domain: 'zenn.dev' },
+                      { name: 'note', domain: 'note.com' },
+                    ].map((site) => (
+                      <div key={site.domain} className="flex items-center gap-1.5 rounded bg-white px-2 py-1 shadow-sm">
+                        <img
+                          src={`https://www.google.com/s2/favicons?domain=${site.domain}&sz=16`}
+                          alt={site.name}
+                          className="h-4 w-4"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                        <span className="text-xs">{site.name}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -148,7 +278,15 @@ export default function LandingPageClient({
                 <div className="ml-5">
                   <h3 className="text-lg font-semibold text-gray-800">APIキーを追加</h3>
                   <p className="mt-2 text-base text-gray-600">
-                    Google AI StudioからGemini APIキーを取得して入力してください。
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange-600 hover:underline"
+                    >
+                      Google AI Studio
+                    </a>
+                    からGemini APIキーを取得して入力してください。
                   </p>
                 </div>
               </div>
@@ -159,7 +297,7 @@ export default function LandingPageClient({
                 <div className="ml-5">
                   <h3 className="text-lg font-semibold text-gray-800">URLまたは画像を追加</h3>
                   <p className="mt-2 text-base text-gray-600">
-                    Webサイト、YouTube、Instagram、X（Twitter）などのURLを貼り付けるか、
+                    Webサイト、YouTubeなどのURLを貼り付けるか、
                     本の写真やPDFをアップロードすると、AIが自動で内容を抽出します。
                   </p>
                 </div>
@@ -173,10 +311,6 @@ export default function LandingPageClient({
                 <li className="flex items-start">
                   <span className="mr-2 text-orange-500 font-bold">料理好き：</span>
                   <span>レシピサイトを横断してお気に入りをまとめる</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="mr-2 text-orange-500 font-bold">推し活：</span>
-                  <span>SNSの投稿や動画をアーカイブして永久保存</span>
                 </li>
                 <li className="flex items-start">
                   <span className="mr-2 text-orange-500 font-bold">ゲーマー：</span>
