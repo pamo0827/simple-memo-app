@@ -78,6 +78,29 @@ export default async function SharePage({ params }: SharePageProps) {
                     </div>
                   </div>
                 )}
+
+                {/* カスタムセクション */}
+                {recipe.sections && recipe.sections.length > 0 && recipe.sections.map((section, sectionIndex) => {
+                  const sectionColors = [
+                    'border-blue-500',
+                    'border-green-500',
+                    'border-purple-500',
+                    'border-pink-500',
+                    'border-indigo-500',
+                    'border-cyan-500',
+                    'border-teal-500',
+                    'border-rose-500',
+                  ]
+                  const colorClass = sectionColors[sectionIndex % sectionColors.length]
+
+                  return (
+                    <div key={sectionIndex} className={`border-l-4 ${colorClass} pl-5 py-1`}>
+                      <div className="prose prose-sm max-w-none text-gray-700 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-gray-900 [&_h2]:mb-2 [&_h2]:mt-0 [&_h3]:text-base [&_h3]:font-medium [&_h3]:text-gray-800 [&_h3]:mb-1 [&_h3]:mt-3 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-1 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{section.content}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )
+                })}
               </CardContent>
             </Card>
           )
