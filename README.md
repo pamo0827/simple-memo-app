@@ -9,7 +9,7 @@ AIによるシンプルなメモ管理アプリ。レシピサイト、動画、
 
 ---
 
-https://recipe-database-cooki-git-303e59-yoshi0827101328-9306s-projects.vercel.app/
+https://memotto.app
 
 ## 主な機能
 
