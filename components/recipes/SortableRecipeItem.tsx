@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import type { Recipe } from '@/lib/supabase'
-import { GripVertical, CheckSquare, Square, FileText } from 'lucide-react' // FileText をインポート
+import type { Recipe, RecipeSection } from '@/lib/supabase'
+import { GripVertical, CheckSquare, Square, FileText, Plus, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Tweet } from 'react-tweet'
@@ -43,6 +44,9 @@ export function SortableRecipeItem({
   const [tempUrl, setTempUrl] = useState(recipe.source_url || '')
   const [tempIngredients, setTempIngredients] = useState(recipe.ingredients)
   const [tempInstructions, setTempInstructions] = useState(recipe.instructions)
+
+  const [sections, setSections] = useState<RecipeSection[]>(recipe.sections || [])
+  const [editingSectionIndex, setEditingSectionIndex] = useState<number | null>(null)
 
   const {
     attributes,
@@ -83,6 +87,41 @@ export function SortableRecipeItem({
       onUpdateRecipe(recipe.id, { instructions: tempInstructions })
     }
     setEditingInstructions(false)
+  }
+
+  const handleAddSection = () => {
+    const newSection: RecipeSection = { title: '', content: '' }
+    const updatedSections = [...sections, newSection]
+    setSections(updatedSections)
+    onUpdateRecipe(recipe.id, { sections: updatedSections })
+  }
+
+  const handleRemoveSection = (index: number) => {
+    const updatedSections = sections.filter((_, i) => i !== index)
+    setSections(updatedSections)
+    onUpdateRecipe(recipe.id, { sections: updatedSections })
+  }
+
+  const handleUpdateSectionContent = (index: number, content: string) => {
+    const updatedSections = [...sections]
+    updatedSections[index] = { ...updatedSections[index], content }
+    setSections(updatedSections)
+    onUpdateRecipe(recipe.id, { sections: updatedSections })
+  }
+
+  const sectionColors = [
+    'border-blue-500',
+    'border-green-500',
+    'border-purple-500',
+    'border-pink-500',
+    'border-indigo-500',
+    'border-cyan-500',
+    'border-teal-500',
+    'border-rose-500',
+  ]
+
+  const getSectionColor = (index: number) => {
+    return sectionColors[index % sectionColors.length]
   }
 
   return (
@@ -194,7 +233,7 @@ export function SortableRecipeItem({
                       }
                     }}
                     autoFocus
-                    className="text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[100px] bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[250px] bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                 ) : (
                   <div
@@ -220,7 +259,7 @@ export function SortableRecipeItem({
                       }
                     }}
                     autoFocus
-                    className="text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[150px] bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[300px] bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                 ) : (
                   <div
@@ -232,6 +271,58 @@ export function SortableRecipeItem({
                 )}
               </div>
             )}
+
+            {/* カスタムセクション */}
+            {sections.map((section, index) => (
+              <div key={index} className={`border-l-4 ${getSectionColor(index)} pl-5 py-1 relative`}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveSection(index)}
+                  className="absolute top-1 right-1 h-6 w-6 p-0 hover:bg-red-50 hover:text-red-600"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                {editingSectionIndex === index ? (
+                  <Textarea
+                    value={section.content}
+                    onChange={(e) => handleUpdateSectionContent(index, e.target.value)}
+                    onBlur={() => setEditingSectionIndex(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setEditingSectionIndex(null)
+                      }
+                    }}
+                    autoFocus
+                    className="text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[200px] bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                ) : (
+                  <div
+                    className="prose prose-sm max-w-none cursor-text text-gray-700 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-gray-900 [&_h2]:mb-2 [&_h2]:mt-0 [&_h3]:text-base [&_h3]:font-medium [&_h3]:text-gray-800 [&_h3]:mb-1 [&_h3]:mt-3 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-1 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5"
+                    onDoubleClick={() => setEditingSectionIndex(index)}
+                  >
+                    {section.content ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{section.content}</ReactMarkdown>
+                    ) : (
+                      <p className="text-gray-400 text-sm">ダブルクリックして内容を入力</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* セクション追加ボタン */}
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddSection}
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                セクションを追加
+              </Button>
+            </div>
 
             {/* 埋め込みプレビュー */}
             {(() => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { processImage } from '@/lib/ai'
+import { checkAndUpdateUsage } from '@/lib/free-tier'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -9,6 +10,7 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData()
   const file = formData.get('file') as File | null
   const userId = formData.get('userId') as string | null
+  const skipAI = formData.get('skipAI') === 'true'
 
   if (!file || !userId) {
     return NextResponse.json({ error: 'File and userId are required' }, { status: 400 })
@@ -19,10 +21,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '現在、画像ファイルのみ対応しています。' }, { status: 400 })
   }
 
+  // リクエストでAIをスキップする指定がある場合
+  if (skipAI) {
+    console.log('[OCR] AI skipped by request - creating basic memo')
+    return NextResponse.json({
+      type: 'summary',
+      data: `# メモ\n\n画像ファイル: ${file.name}`
+    })
+  }
+
+  // 無料枠の使用制限チェック
+  const usageCheck = await checkAndUpdateUsage(userId)
+  if (!usageCheck.allowed) {
+    return NextResponse.json({
+      error: usageCheck.errorMessage
+    }, { status: 429 })
+  }
+
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const { data: userSettings, error: userError } = await supabase
     .from('user_settings')
-    .select('gemini_api_key')
+    .select('ai_summary_enabled, custom_prompt')
     .eq('user_id', userId)
     .single()
 
@@ -30,14 +49,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'User settings not found.' }, { status: 404 })
   }
 
-  const apiKey = userSettings.gemini_api_key
+  const apiKey = usageCheck.apiKey
+  const aiSummaryEnabled = userSettings.ai_summary_enabled ?? true
+  const customPrompt = usageCheck.isFreeTier ? null : userSettings.custom_prompt
 
-  // APIキーがない場合の処理
-  // Gemini APIキーが設定されていない場合、画像を解析できないため、
-  // タイトル「メモ」とファイル名のみを含む基本的なメモを返す
-  // これにより、ユーザーは少なくともファイル情報を記録できる
-  if (!apiKey) {
-    console.log('[OCR] No API key - creating basic memo')
+  // AI要約が無効の場合の処理
+  // ユーザーがAI要約を無効にしている場合、
+  // 画像を解析せず、タイトル「メモ」とファイル名のみを含む基本的なメモを返す
+  if (!aiSummaryEnabled) {
+    console.log('[OCR] AI summary disabled - creating basic memo')
     return NextResponse.json({
       type: 'summary',
       data: `# メモ\n\n画像ファイル: ${file.name}`
@@ -52,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     // 画像から情報を抽出
     // Gemini Vision APIを使用して、画像内のテキスト、URL、レシピ情報などを抽出
-    const result = await processImage(base64Image, apiKey)
+    const result = await processImage(base64Image, apiKey, undefined, customPrompt)
 
     // 抽出結果をフロントエンドに返す
     return NextResponse.json(result)

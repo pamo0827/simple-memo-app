@@ -62,7 +62,8 @@ export default function HomePage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [nickname, setNickname] = useState<string | null>(null)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [sidebarEnabled, setSidebarEnabled] = useState(false)
   const [isShareDialogOpen, setShareDialogOpen] = useState(false) // このstateは残します
   const [hasApiKey, setHasApiKey] = useState<boolean>(true)
   const [showApiKeyWarning, setShowApiKeyWarning] = useState<boolean>(false)
@@ -102,18 +103,6 @@ export default function HomePage() {
 
   useEffect(() => { checkUser() }, [])
 
-  // モバイルではサイドバーをデフォルトで閉じる
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 768) {
-        setIsSidebarOpen(false)
-      }
-    }
-    handleResize()
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -125,13 +114,18 @@ export default function HomePage() {
 
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('nickname, list_order, gemini_api_key')
+      .select('nickname, list_order, gemini_api_key, sidebar_visible')
       .eq('user_id', user.id)
       .single()
 
     if (settings) {
       setNickname(settings.nickname)
       setListOrder(settings.list_order || [])
+
+      // サイドバーの有効/無効と初期表示状態を設定
+      const sidebarSetting = settings.sidebar_visible ?? false
+      setSidebarEnabled(sidebarSetting)
+      setIsSidebarOpen(sidebarSetting)
 
       // Gemini APIキーの状態をチェック
       const hasKey = !!settings.gemini_api_key
@@ -257,7 +251,7 @@ export default function HomePage() {
     setIsSelectionMode(false)
   }
 
-  const handleAddFromUrl = async (e: React.FormEvent, url: string) => {
+  const handleAddFromUrl = async (e: React.FormEvent, url: string, useAI: boolean = true) => {
     e.preventDefault()
     if (!url || !userId) return
     setIsScraping(true)
@@ -274,7 +268,7 @@ export default function HomePage() {
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url, userId }),
+        body: JSON.stringify({ url: url, userId, skipAI: !useAI }),
       })
       if (!response.ok) {
         const errorData = await response.json()
@@ -363,7 +357,7 @@ export default function HomePage() {
 
 
 
-  const handleAddFromFile = async (e: React.FormEvent, file: File) => {
+  const handleAddFromFile = async (e: React.FormEvent, file: File, useAI: boolean = true) => {
     e.preventDefault()
     if (!file || !userId) return
 
@@ -374,6 +368,7 @@ export default function HomePage() {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('userId', userId)
+    formData.append('skipAI', (!useAI).toString())
 
     try {
       const response = await fetch('/api/ocr-recipe', {
@@ -467,6 +462,26 @@ export default function HomePage() {
     }
   }
 
+  const handleAddBasic = async (e: React.FormEvent, title: string, content: string) => {
+    e.preventDefault()
+    if (!title.trim() || !userId) return
+
+    try {
+      const recipe = await createRecipe(userId, {
+        name: title.trim(),
+        ingredients: '',
+        instructions: content.trim() || '',
+        source_url: undefined,
+      })
+      if (recipe) {
+        setRecipes([recipe, ...recipes])
+        setAddDialogOpen(false)
+      }
+    } catch (error) {
+      console.error('Basic memo creation error:', error)
+    }
+  }
+
   const filteredListItems = useMemo(() => {
     if (!searchTerm) return listItems
     const lowercasedTerm = searchTerm.toLowerCase()
@@ -503,12 +518,14 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-white flex">
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-        categories={categories}
-        onCategoryClick={scrollToCategory}
-      />
+      {sidebarEnabled && (
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+          categories={categories}
+          onCategoryClick={scrollToCategory}
+        />
+      )}
 
       {/* メインコンテンツ */}
       <div className="flex-1 overflow-x-hidden">
@@ -551,15 +568,17 @@ export default function HomePage() {
 
           <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100">
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="md:hidden hover:bg-gray-50"
-                title="メニュー"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
+              {sidebarEnabled && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="md:hidden hover:bg-gray-50"
+                  title="メニュー"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              )}
               {nickname && <p className="fluid-text-base font-bold">{nickname}さん</p>}
             </div>
             <div className="flex items-center gap-2">
@@ -745,6 +764,7 @@ export default function HomePage() {
         onOpenChange={setAddDialogOpen}
         onAddFromUrl={handleAddFromUrl}
         onAddFromFile={handleAddFromFile}
+        onAddBasic={handleAddBasic}
         isScraping={isScraping}
         scrapeError={scrapeError}
         isUploading={isUploading}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { processText } from '@/lib/ai'
 import { getContentText } from '@/lib/content'
+import { checkAndUpdateUsage } from '@/lib/free-tier'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -10,28 +11,46 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 export async function POST(request: NextRequest) {
   try {
-    const { url, userId } = await request.json()
+    const { url, userId, skipAI } = await request.json()
 
     if (!url || !userId) {
       return NextResponse.json({ error: 'URL and User ID are required' }, { status: 400 })
+    }
+
+    // リクエストでAIをスキップする指定がある場合
+    if (skipAI) {
+      console.log('[Scrape] AI skipped by request - creating basic memo with URL')
+      return NextResponse.json({
+        type: 'summary',
+        data: `# メモ\n\n${url}`
+      })
+    }
+
+    // 無料枠の使用制限チェック
+    const usageCheck = await checkAndUpdateUsage(userId)
+    if (!usageCheck.allowed) {
+      return NextResponse.json({
+        error: usageCheck.errorMessage
+      }, { status: 429 })
     }
 
     // Get user's settings from database
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('gemini_api_key')
+      .select('ai_summary_enabled, custom_prompt')
       .eq('user_id', userId)
       .maybeSingle()
 
-    const apiKey = settings?.gemini_api_key
+    const apiKey = usageCheck.apiKey
+    const aiSummaryEnabled = settings?.ai_summary_enabled ?? true
+    const customPrompt = usageCheck.isFreeTier ? null : settings?.custom_prompt
 
-    // APIキーがない場合の処理
-    // Gemini APIキーが設定されていない場合、コンテンツを解析できないため、
-    // タイトル「メモ」とURLのみを含む基本的なメモを返す
-    // これにより、ユーザーはURLを保存でき、後でAPIキーを設定してから解析できる
-    if (!apiKey) {
-      console.log('[Scrape] No API key - creating basic memo with URL')
+    // AI要約が無効の場合の処理
+    // ユーザーがAI要約を無効にしている場合、
+    // コンテンツを解析せず、タイトル「メモ」とURLのみを含む基本的なメモを返す
+    if (!aiSummaryEnabled) {
+      console.log('[Scrape] AI summary disabled - creating basic memo with URL')
       return NextResponse.json({
         type: 'summary',
         data: `# メモ\n\n${url}`
@@ -78,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract recipe using the centralized AI function
-    const result = await processText(text, apiKey)
+    const result = await processText(text, apiKey, customPrompt)
 
     return NextResponse.json(result)
 
