@@ -31,8 +31,6 @@ export default function SettingsPage() {
   const [customPrompt, setCustomPrompt] = useState('')
   const [apiKeysSaving, setApiKeysSaving] = useState(false)
   const [apiKeysMessage, setApiKeysMessage] = useState('')
-  const [isFreeTier, setIsFreeTier] = useState(true)
-  const [dailyUsage, setDailyUsage] = useState(0)
 
   const [sidebarVisible, setSidebarVisible] = useState(false)
   const [displaySaving, setDisplaySaving] = useState(false)
@@ -62,8 +60,6 @@ export default function SettingsPage() {
       setAiSummaryEnabled(settings.ai_summary_enabled ?? true)
       setCustomPrompt(settings.custom_prompt || '')
       setSidebarVisible(settings.sidebar_visible ?? false)
-      setIsFreeTier(settings.is_using_free_tier ?? true)
-      setDailyUsage(settings.daily_usage_count ?? 0)
     }
     setLoading(false)
   }
@@ -135,20 +131,13 @@ export default function SettingsPage() {
     setApiKeysSaving(true)
     setApiKeysMessage('')
 
-    // APIキーが設定されている場合、無料枠を解除
-    const isUsingFreeTier = !geminiApiKey || geminiApiKey.trim() === ''
-
     const success = await upsertUserSettings(userId, {
       gemini_api_key: geminiApiKey,
       ai_summary_enabled: aiSummaryEnabled,
       custom_prompt: customPrompt.trim() || null,
-      is_using_free_tier: isUsingFreeTier,
     })
     if (success) {
       setApiKeysMessage('AI設定を保存しました')
-      setIsFreeTier(isUsingFreeTier)
-      // 設定を再読み込み
-      await loadSettings(userId)
     } else {
       setApiKeysMessage('保存に失敗しました')
     }
@@ -248,29 +237,11 @@ export default function SettingsPage() {
           <form onSubmit={handleApiKeysSave} className="space-y-6">
             <h2 className="text-lg font-semibold">AI設定</h2>
 
-            {/* 無料枠の情報 */}
-            {isFreeTier && (
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 className="text-sm font-semibold text-blue-900 mb-2">🎁 無料枠をご利用中</h3>
-                <p className="text-sm text-blue-800 mb-2">
-                  現在、1日10回まで無料でAI解析をご利用いただけます。
-                </p>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-blue-700">本日の使用回数:</span>
-                  <span className="font-semibold text-blue-900">{dailyUsage} / 10回</span>
-                </div>
-                <p className="text-xs text-blue-600 mt-3">
-                  💡 独自のGemini APIキーを設定すると、使用制限なしで利用できます。
-                </p>
-              </div>
-            )}
-
             <div className="space-y-2">
-              <Label htmlFor="geminiApiKey">Gemini APIキー（任意）</Label>
+              <Label htmlFor="geminiApiKey">Gemini APIキー</Label>
               <Input id="geminiApiKey" type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="AIzaSy..." />
               <p className="text-xs text-gray-500">
                 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a> から取得
-                {isFreeTier && <span className="ml-1">（設定すると無制限で使用できます）</span>}
               </p>
             </div>
             <div className="flex items-center space-x-2">
@@ -294,17 +265,10 @@ export default function SettingsPage() {
                 onChange={(e) => setCustomPrompt(e.target.value)}
                 placeholder="AIに特定の指示を与える場合はここに入力してください。空欄の場合はデフォルトプロンプトを使用します。"
                 className="min-h-[150px] text-sm"
-                disabled={isFreeTier}
               />
-              {isFreeTier ? (
-                <p className="text-xs text-amber-600">
-                  ⚠️ カスタムプロンプトは独自のAPIキーを設定した場合のみ使用できます。
-                </p>
-              ) : (
-                <p className="text-xs text-gray-500">
-                  例: 「レシピの場合は材料を箇条書きで、作り方を番号付きリストで抽出してください」
-                </p>
-              )}
+              <p className="text-xs text-gray-500">
+                例: 「レシピの場合は材料を箇条書きで、作り方を番号付きリストで抽出してください」
+              </p>
               <div className="mt-4">
                 <button
                   type="button"

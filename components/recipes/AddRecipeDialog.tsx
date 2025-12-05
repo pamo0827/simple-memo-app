@@ -177,10 +177,6 @@ export function AddRecipeDialog({
                       <p>X (Twitter)、Instagram</p>
                       <p className="text-xs">※ これらのサイトはログインが必要なため、内容を取得できません</p>
                     </div>
-                    <div className="pt-2 border-t border-gray-200">
-                      <p className="text-blue-600 font-semibold">🎁 無料枠: 1日10回まで</p>
-                      <p className="text-xs mt-1">独自のAPIキーを設定すると無制限で使用できます</p>
-                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -207,16 +203,10 @@ export function AddRecipeDialog({
                   {uploadSuccess && <div className="p-3 text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg">{uploadSuccess}</div>}
                   <Button type="submit" disabled={isUploading || !selectedFile} className="w-full h-11"><Upload className="mr-2 h-4 w-4" />{isUploading ? '解析中...' : (useAI ? '内容を解析' : 'ファイルを保存')}</Button>
                 </form>
-                <div className="text-xs text-gray-500 text-center mt-6 space-y-3">
-                  <div>
-                    <p>画像やPDFをアップロードすれば、</p>
-                    <p>文字やURLを解析して自動で追加します。</p>
-                    <p className="mt-1">対応形式：JPEG、PNG、PDF</p>
-                  </div>
-                  <div className="pt-3 border-t border-gray-200">
-                    <p className="text-blue-600 font-semibold">🎁 無料枠: 1日10回まで</p>
-                    <p className="text-xs mt-1">独自のAPIキーを設定すると無制限で使用できます</p>
-                  </div>
+                <div className="text-xs text-gray-500 text-center mt-6">
+                  <p>画像やPDFをアップロードすれば、</p>
+                  <p>文字やURLを解析して自動で追加します。</p>
+                  <p className="mt-1">対応形式：JPEG、PNG、PDF</p>
                 </div>
               </CardContent>
             </Card>
