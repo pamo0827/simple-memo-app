@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData()
   const file = formData.get('file') as File | null
   const userId = formData.get('userId') as string | null
+  const skipAI = formData.get('skipAI') === 'true'
 
   if (!file || !userId) {
     return NextResponse.json({ error: 'File and userId are required' }, { status: 400 })
@@ -19,10 +20,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '現在、画像ファイルのみ対応しています。' }, { status: 400 })
   }
 
+  // リクエストでAIをスキップする指定がある場合
+  if (skipAI) {
+    console.log('[OCR] AI skipped by request - creating basic memo')
+    return NextResponse.json({
+      type: 'summary',
+      data: `# メモ\n\n画像ファイル: ${file.name}`
+    })
+  }
+
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const { data: userSettings, error: userError } = await supabase
     .from('user_settings')
-    .select('gemini_api_key')
+    .select('gemini_api_key, ai_summary_enabled, custom_prompt')
     .eq('user_id', userId)
     .single()
 
@@ -31,13 +41,12 @@ export async function POST(request: NextRequest) {
   }
 
   const apiKey = userSettings.gemini_api_key
+  const aiSummaryEnabled = userSettings.ai_summary_enabled ?? true
+  const customPrompt = userSettings.custom_prompt
 
-  // APIキーがない場合の処理
-  // Gemini APIキーが設定されていない場合、画像を解析できないため、
-  // タイトル「メモ」とファイル名のみを含む基本的なメモを返す
-  // これにより、ユーザーは少なくともファイル情報を記録できる
-  if (!apiKey) {
-    console.log('[OCR] No API key - creating basic memo')
+  // APIキーがない、またはAI要約が無効の場合の処理
+  if (!apiKey || !aiSummaryEnabled) {
+    console.log('[OCR] AI summary disabled - creating basic memo')
     return NextResponse.json({
       type: 'summary',
       data: `# メモ\n\n画像ファイル: ${file.name}`
@@ -52,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     // 画像から情報を抽出
     // Gemini Vision APIを使用して、画像内のテキスト、URL、レシピ情報などを抽出
-    const result = await processImage(base64Image, apiKey)
+    const result = await processImage(base64Image, apiKey, undefined, customPrompt)
 
     // 抽出結果をフロントエンドに返す
     return NextResponse.json(result)

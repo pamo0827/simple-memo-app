@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, ModelParams, Content } from '@google/generative-ai'
 
 const models = ['gemini-2.5-flash', 'gemini-2.5-pro'];
 
-const systemPrompt = `あなたは、与えられたウェブページやテキストの内容を分析するアシスタントです。
+export const systemPrompt = `あなたは、与えられたウェブページやテキストの内容を分析するアシスタントです。
 
 まず、内容が「レシピ」に関するものかどうかを判断してください。
 
@@ -66,16 +66,18 @@ function extractJson(text: string): string | null {
   return null;
 }
 
-export async function processText(text: string, apiKey: string) {
+export async function processText(text: string, apiKey: string, customPrompt?: string | null) {
   if (!text) {
     throw new Error('Input text is empty.')
   }
+
+  const prompt = customPrompt || systemPrompt;
 
   let resultFromAI: string | undefined;
   try {
     resultFromAI = await callGenerativeAI(
       apiKey,
-      { systemInstruction: systemPrompt },
+      { systemInstruction: prompt },
       `以下のテキストを処理してください：\n\n${text}`
     );
 
@@ -110,7 +112,7 @@ export async function processText(text: string, apiKey: string) {
   }
 }
 
-const imageSystemPrompt = `あなたは画像から情報を抽出するアシスタントです。
+export const imageSystemPrompt = `あなたは画像から情報を抽出するアシスタントです。
 まず、画像が「レシピ」に関するものかどうかを判断してください。
 
 **画像がレシピの場合：**
@@ -134,10 +136,12 @@ const imageSystemPrompt = `あなたは画像から情報を抽出するアシ�
 **どちらでもない、またはエラーの場合：**
 {"type": "error", "data": "内容を処理できませんでした。"} を返してください。`
 
-export async function processImage(base64Image: string, apiKey: string, caption?: string) {
+export async function processImage(base64Image: string, apiKey: string, caption?: string, customPrompt?: string | null) {
   if (!base64Image) {
     throw new Error('Image data is empty.')
   }
+
+  const systemInst = customPrompt || imageSystemPrompt;
 
   try {
     const prompt = caption
@@ -156,7 +160,7 @@ export async function processImage(base64Image: string, apiKey: string, caption?
 
     const result = await callGenerativeAI(
       apiKey,
-      { systemInstruction: imageSystemPrompt },
+      { systemInstruction: systemInst },
       content
     );
 
@@ -184,7 +188,7 @@ export async function processImage(base64Image: string, apiKey: string, caption?
   }
 }
 
-const videoSystemPrompt = `あなたは動画から情報を抽出するアシスタントです。
+export const videoSystemPrompt = `あなたは動画から情報を抽出するアシスタントです。
 まず、動画が「レシピ」に関するものかどうかを判断してください。
 
 **動画がレシピの場合：**
@@ -208,10 +212,12 @@ const videoSystemPrompt = `あなたは動画から情報を抽出するアシ�
 **どちらでもない、またはエラーの場合：**
 {"type": "error", "data": "内容を処理できませんでした。"} を返してください。`
 
-export async function processVideo(videoUrl: string, apiKey: string) {
+export async function processVideo(videoUrl: string, apiKey: string, customPrompt?: string | null) {
   if (!videoUrl) {
     throw new Error('Video URL is empty.')
   }
+
+  const systemInst = customPrompt || videoSystemPrompt;
 
   try {
     const content: Content = [
@@ -226,7 +232,7 @@ export async function processVideo(videoUrl: string, apiKey: string) {
 
     const result = await callGenerativeAI(
       apiKey,
-      { systemInstruction: videoSystemPrompt },
+      { systemInstruction: systemInst },
       content
     );
 

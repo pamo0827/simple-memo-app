@@ -3,6 +3,7 @@
 import { useState, ChangeEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
@@ -11,6 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { Upload } from 'lucide-react'
 
 const siteGroups = [
@@ -58,8 +61,9 @@ const siteGroups = [
 interface AddRecipeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAddFromUrl: (e: React.FormEvent, url: string) => Promise<void>
-  onAddFromFile: (e: React.FormEvent, file: File) => Promise<void>
+  onAddFromUrl: (e: React.FormEvent, url: string, useAI: boolean) => Promise<void>
+  onAddFromFile: (e: React.FormEvent, file: File, useAI: boolean) => Promise<void>
+  onAddBasic: (e: React.FormEvent, title: string, content: string) => Promise<void>
   isScraping: boolean
   scrapeError: string
   isUploading: boolean
@@ -72,6 +76,7 @@ export function AddRecipeDialog({
   onOpenChange,
   onAddFromUrl,
   onAddFromFile,
+  onAddBasic,
   isScraping,
   scrapeError,
   isUploading,
@@ -80,6 +85,9 @@ export function AddRecipeDialog({
 }: AddRecipeDialogProps) {
   const [recipeUrl, setRecipeUrl] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [useAI, setUseAI] = useState(true)
+  const [basicTitle, setBasicTitle] = useState('')
+  const [basicContent, setBasicContent] = useState('')
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -90,17 +98,25 @@ export function AddRecipeDialog({
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!recipeUrl) return
-    await onAddFromUrl(e, recipeUrl)
+    await onAddFromUrl(e, recipeUrl, useAI)
     setRecipeUrl('')
   }
 
   const handleFileSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedFile) return
-    await onAddFromFile(e, selectedFile)
+    await onAddFromFile(e, selectedFile, useAI)
     setSelectedFile(null)
     const fileInput = document.getElementById('file-upload-dialog') as HTMLInputElement
     if (fileInput) fileInput.value = ''
+  }
+
+  const handleBasicSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!basicTitle.trim()) return
+    await onAddBasic(e, basicTitle, basicContent)
+    setBasicTitle('')
+    setBasicContent('')
   }
 
   return (
@@ -110,9 +126,10 @@ export function AddRecipeDialog({
           <DialogTitle className="text-center">メモの追加</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="url" className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="url">URLから追加</TabsTrigger>
             <TabsTrigger value="file">写真から追加</TabsTrigger>
+            <TabsTrigger value="basic">何もなしで追加</TabsTrigger>
           </TabsList>
           <TabsContent value="url">
             <Card className="border-none shadow-none">
@@ -121,8 +138,18 @@ export function AddRecipeDialog({
                   <div className="space-y-2">
                     <Input id="url-input" type="url" value={recipeUrl} onChange={(e) => setRecipeUrl(e.target.value)} placeholder="https://cookpad.com/recipe/..." required disabled={isScraping} className="text-base h-11" />
                   </div>
+                  <div className="flex items-center space-x-2 py-2">
+                    <Switch
+                      id="use-ai-url"
+                      checked={useAI}
+                      onCheckedChange={setUseAI}
+                    />
+                    <Label htmlFor="use-ai-url" className="cursor-pointer text-sm">
+                      AI要約を使用する
+                    </Label>
+                  </div>
                   {scrapeError && <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg">{scrapeError}</div>}
-                  <Button type="submit" disabled={isScraping || !recipeUrl} className="w-full h-11">{isScraping ? '解析中...' : '内容を解析'}</Button>
+                  <Button type="submit" disabled={isScraping || !recipeUrl} className="w-full h-11">{isScraping ? '解析中...' : (useAI ? '内容を解析' : 'URLを保存')}</Button>
                 </form>
                 <div className="mt-6 space-y-4">
                   <h2 className="text-xs font-semibold text-gray-500 text-center">動作確認済みサイト</h2>
@@ -140,9 +167,16 @@ export function AddRecipeDialog({
                       </div>
                     </div>
                   ))}
-                  <div className="mt-4 text-xs text-gray-500 text-center">
-                    <p>※ 内容を読み取れない場合やAPIキーが未設定の場合は、</p>
-                    <p>URLのみを保存した基本メモが作成されます。</p>
+                  <div className="mt-4 text-xs text-gray-500 text-center space-y-2">
+                    <div>
+                      <p>※ 内容を読み取れない場合やAPIキーが未設定の場合は、</p>
+                      <p>URLのみを保存した基本メモが作成されます。</p>
+                    </div>
+                    <div className="pt-2 border-t border-gray-200">
+                      <p className="font-semibold text-red-600">動作しないサイト</p>
+                      <p>X (Twitter)、Instagram</p>
+                      <p className="text-xs">※ これらのサイトはログインが必要なため、内容を取得できません</p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -155,14 +189,61 @@ export function AddRecipeDialog({
                   <div className="space-y-2">
                     <Input id="file-upload-dialog" type="file" onChange={handleFileChange} accept="image/jpeg,image/png,application/pdf" required disabled={isUploading} />
                   </div>
+                  <div className="flex items-center space-x-2 py-2">
+                    <Switch
+                      id="use-ai-file"
+                      checked={useAI}
+                      onCheckedChange={setUseAI}
+                    />
+                    <Label htmlFor="use-ai-file" className="cursor-pointer text-sm">
+                      AI要約を使用する
+                    </Label>
+                  </div>
                   {uploadError && <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg">{uploadError}</div>}
                   {uploadSuccess && <div className="p-3 text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg">{uploadSuccess}</div>}
-                  <Button type="submit" disabled={isUploading || !selectedFile} className="w-full h-11"><Upload className="mr-2 h-4 w-4" />{isUploading ? '解析中...' : '内容を解析'}</Button>
+                  <Button type="submit" disabled={isUploading || !selectedFile} className="w-full h-11"><Upload className="mr-2 h-4 w-4" />{isUploading ? '解析中...' : (useAI ? '内容を解析' : 'ファイルを保存')}</Button>
                 </form>
                 <div className="text-xs text-gray-500 text-center mt-6">
                   <p>画像やPDFをアップロードすれば、</p>
                   <p>文字やURLを解析して自動で追加します。</p>
                   <p className="mt-1">対応形式：JPEG、PNG、PDF</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="basic">
+            <Card className="border-none shadow-none">
+              <CardContent className="pt-6">
+                <form onSubmit={handleBasicSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="basic-title">タイトル</Label>
+                    <Input
+                      id="basic-title"
+                      type="text"
+                      value={basicTitle}
+                      onChange={(e) => setBasicTitle(e.target.value)}
+                      placeholder="メモのタイトルを入力"
+                      required
+                      className="text-base h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="basic-content">内容（任意）</Label>
+                    <Textarea
+                      id="basic-content"
+                      value={basicContent}
+                      onChange={(e) => setBasicContent(e.target.value)}
+                      placeholder="メモの内容を入力（マークダウン対応）"
+                      className="min-h-[200px] text-base"
+                    />
+                  </div>
+                  <Button type="submit" disabled={!basicTitle.trim()} className="w-full h-11">
+                    メモを作成
+                  </Button>
+                </form>
+                <div className="text-xs text-gray-500 text-center mt-6">
+                  <p>URLや画像なしで、手軽にメモを作成できます。</p>
+                  <p className="mt-1">内容はマークダウン形式で記述できます。</p>
                 </div>
               </CardContent>
             </Card>

@@ -8,7 +8,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 export async function POST(request: NextRequest) {
   try {
-    const { url, userId } = await request.json()
+    const { url, userId, skipAI } = await request.json()
 
     if (!url || !userId) {
       return NextResponse.json({ error: 'URLとユーザーIDが必要です' }, { status: 400 })
@@ -25,21 +25,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '動画IDを取得できませんでした' }, { status: 400 })
     }
 
+    // リクエストでAIをスキップする指定がある場合
+    if (skipAI) {
+      console.log('[YouTube] AI skipped by request - creating basic memo with URL')
+      return NextResponse.json({
+        type: 'summary',
+        data: `# メモ\n\n${url}`
+      })
+    }
+
     // ユーザー設定を取得
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('gemini_api_key')
+      .select('gemini_api_key, ai_summary_enabled, custom_prompt')
       .eq('user_id', userId)
       .maybeSingle()
 
     const apiKey = settings?.gemini_api_key
+    const aiSummaryEnabled = settings?.ai_summary_enabled ?? true
+    const customPrompt = settings?.custom_prompt
 
-    // APIキーがない場合の処理
-    // Gemini APIキーが設定されていない場合、動画や字幕を解析できないため、
-    // タイトル「メモ」とURLのみを含む基本的なメモを返す
-    if (!apiKey) {
-      console.log('[YouTube] No API key - creating basic memo with URL')
+    // APIキーがない、またはAI要約が無効の場合の処理
+    if (!apiKey || !aiSummaryEnabled) {
+      console.log('[YouTube] AI summary disabled - creating basic memo with URL')
       return NextResponse.json({
         type: 'summary',
         data: `# メモ\n\n${url}`
@@ -56,7 +65,7 @@ export async function POST(request: NextRequest) {
     if (isShortsVideo) {
       // Shortsの場合、動画を直接解析
       console.log('Analyzing YouTube Shorts with Gemini video API...')
-      result = await processVideo(url, apiKey)
+      result = await processVideo(url, apiKey, customPrompt)
     } else {
       // 通常の動画の場合、字幕とメタデータを取得
       // youtubei.jsライブラリを使用して、動画の字幕（transcript）と説明文を取得
@@ -75,7 +84,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 字幕とメタデータからコンテンツを抽出
-      result = await processText(fullText, apiKey)
+      result = await processText(fullText, apiKey, customPrompt)
     }
 
     return NextResponse.json(result)

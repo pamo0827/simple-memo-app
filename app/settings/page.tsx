@@ -4,10 +4,13 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getUserSettings, upsertUserSettings } from '@/lib/user-settings'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { systemPrompt, imageSystemPrompt, videoSystemPrompt } from '@/lib/ai'
 export default function SettingsPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -24,8 +27,16 @@ export default function SettingsPage() {
   const [passwordMessage, setPasswordMessage] = useState('')
 
   const [geminiApiKey, setGeminiApiKey] = useState('')
+  const [aiSummaryEnabled, setAiSummaryEnabled] = useState(true)
+  const [customPrompt, setCustomPrompt] = useState('')
   const [apiKeysSaving, setApiKeysSaving] = useState(false)
   const [apiKeysMessage, setApiKeysMessage] = useState('')
+
+  const [sidebarVisible, setSidebarVisible] = useState(false)
+  const [displaySaving, setDisplaySaving] = useState(false)
+  const [displayMessage, setDisplayMessage] = useState('')
+
+  const [showDefaultPrompts, setShowDefaultPrompts] = useState(false)
 
   useEffect(() => {
     const checkUser = async () => {
@@ -46,6 +57,9 @@ export default function SettingsPage() {
     if (settings) {
       setNickname(settings.nickname || '')
       setGeminiApiKey(settings.gemini_api_key || '')
+      setAiSummaryEnabled(settings.ai_summary_enabled ?? true)
+      setCustomPrompt(settings.custom_prompt || '')
+      setSidebarVisible(settings.sidebar_visible ?? false)
     }
     setLoading(false)
   }
@@ -92,17 +106,38 @@ export default function SettingsPage() {
     setPasswordSaving(false)
   }
 
+  const handleDisplaySave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!userId) return
+
+    setDisplaySaving(true)
+    setDisplayMessage('')
+    const success = await upsertUserSettings(userId, {
+      sidebar_visible: sidebarVisible,
+    })
+    if (success) {
+      setDisplayMessage('表示設定を保存しました')
+    } else {
+      setDisplayMessage('保存に失敗しました')
+    }
+    setTimeout(() => setDisplayMessage(''), 3000)
+    setDisplaySaving(false)
+  }
+
   const handleApiKeysSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!userId) return
 
     setApiKeysSaving(true)
     setApiKeysMessage('')
+
     const success = await upsertUserSettings(userId, {
       gemini_api_key: geminiApiKey,
+      ai_summary_enabled: aiSummaryEnabled,
+      custom_prompt: customPrompt.trim() || null,
     })
     if (success) {
-      setApiKeysMessage('APIキー設定を保存しました')
+      setApiKeysMessage('AI設定を保存しました')
     } else {
       setApiKeysMessage('保存に失敗しました')
     }
@@ -176,17 +211,94 @@ export default function SettingsPage() {
             </Button>
           </form>
 
+          {/* Display Settings Form */}
+          <form onSubmit={handleDisplaySave} className="space-y-6 pb-8 border-b">
+            <h2 className="text-lg font-semibold">表示設定</h2>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="sidebarVisible"
+                checked={sidebarVisible}
+                onCheckedChange={setSidebarVisible}
+              />
+              <Label htmlFor="sidebarVisible" className="cursor-pointer">
+                目次サイドバーを表示する
+              </Label>
+            </div>
+            <p className="text-xs text-gray-500">
+              ONにすると、メモページに目次サイドバーが表示されます。OFFにすると、サイドバー機能が完全に非表示になります。
+            </p>
+            {displayMessage && <p className="text-sm text-green-600">{displayMessage}</p>}
+            <Button type="submit" disabled={displaySaving}>
+              {displaySaving ? '保存中...' : '表示設定を保存'}
+            </Button>
+          </form>
+
           {/* API Keys Form */}
           <form onSubmit={handleApiKeysSave} className="space-y-6">
             <h2 className="text-lg font-semibold">AI設定</h2>
+
             <div className="space-y-2">
               <Label htmlFor="geminiApiKey">Gemini APIキー</Label>
               <Input id="geminiApiKey" type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="AIzaSy..." />
-              <p className="text-xs text-gray-500"><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a> から取得</p>
+              <p className="text-xs text-gray-500">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a> から取得
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="aiSummaryEnabled"
+                checked={aiSummaryEnabled}
+                onCheckedChange={setAiSummaryEnabled}
+              />
+              <Label htmlFor="aiSummaryEnabled" className="cursor-pointer">
+                AI要約機能を有効にする
+              </Label>
+            </div>
+            <p className="text-xs text-gray-500">
+              OFFにすると、URLや画像を追加する際にAIによる自動要約を行わず、基本情報のみを保存します。
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="customPrompt">カスタムプロンプト（任意）</Label>
+              <Textarea
+                id="customPrompt"
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder="AIに特定の指示を与える場合はここに入力してください。空欄の場合はデフォルトプロンプトを使用します。"
+                className="min-h-[150px] text-sm"
+              />
+              <p className="text-xs text-gray-500">
+                例: 「レシピの場合は材料を箇条書きで、作り方を番号付きリストで抽出してください」
+              </p>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowDefaultPrompts(!showDefaultPrompts)}
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+                >
+                  {showDefaultPrompts ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  デフォルトプロンプトを確認
+                </button>
+                {showDefaultPrompts && (
+                  <div className="mt-3 space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">テキスト/ウェブページ用プロンプト</h4>
+                      <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">{systemPrompt}</pre>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">画像用プロンプト</h4>
+                      <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">{imageSystemPrompt}</pre>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">動画用プロンプト（YouTube Shorts）</h4>
+                      <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">{videoSystemPrompt}</pre>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             {apiKeysMessage && <p className="text-sm text-green-600">{apiKeysMessage}</p>}
             <Button type="submit" disabled={apiKeysSaving}>
-              {apiKeysSaving ? '保存中...' : 'APIキーを保存'}
+              {apiKeysSaving ? '保存中...' : 'AI設定を保存'}
             </Button>
           </form>
         </div>
