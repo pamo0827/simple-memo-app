@@ -16,7 +16,19 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Upload } from 'lucide-react'
 
-const siteGroups = [
+type Site = {
+  name: string
+  url: string
+  favicon: string
+  note?: string
+}
+
+type SiteGroup = {
+  genre: string
+  sites: Site[]
+}
+
+const siteGroups: SiteGroup[] = [
   {
     genre: '動画',
     sites: [
