@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { processText, processVideo } from '@/lib/ai'
 import { extractYouTubeVideoId, getYouTubeFullText, isYouTubeShorts } from '@/lib/youtube'
+import { checkAndUpdateUsage } from '@/lib/free-tier'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -34,20 +35,28 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // 無料枠の使用制限チェック
+    const usageCheck = await checkAndUpdateUsage(userId)
+    if (!usageCheck.allowed) {
+      return NextResponse.json({
+        error: usageCheck.errorMessage
+      }, { status: 429 })
+    }
+
     // ユーザー設定を取得
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('gemini_api_key, ai_summary_enabled, custom_prompt')
+      .select('ai_summary_enabled, custom_prompt')
       .eq('user_id', userId)
       .maybeSingle()
 
-    const apiKey = settings?.gemini_api_key
+    const apiKey = usageCheck.apiKey
     const aiSummaryEnabled = settings?.ai_summary_enabled ?? true
-    const customPrompt = settings?.custom_prompt
+    const customPrompt = usageCheck.isFreeTier ? null : settings?.custom_prompt
 
-    // APIキーがない、またはAI要約が無効の場合の処理
-    if (!apiKey || !aiSummaryEnabled) {
+    // AI要約が無効の場合の処理
+    if (!aiSummaryEnabled) {
       console.log('[YouTube] AI summary disabled - creating basic memo with URL')
       return NextResponse.json({
         type: 'summary',

@@ -69,9 +69,12 @@ export default function LandingPageClient({
             <p className="mt-12 text-lg text-gray-700">
               Geminiによるシンプルなメモアプリ
             </p>
+            <p className="mt-4 text-sm text-orange-600 font-semibold">
+              🎁 1日10回まで無料で使えます
+            </p>
             <Button
               size="lg"
-              className="mt-16 h-auto px-10 py-4 text-lg"
+              className="mt-12 h-auto px-10 py-4 text-lg"
               onClick={() => router.push('/login')}
             >
               無料で始める
@@ -276,8 +279,12 @@ export default function LandingPageClient({
                   2
                 </div>
                 <div className="ml-5">
-                  <h3 className="text-lg font-semibold text-gray-800">APIキーを追加</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">すぐに使える！</h3>
                   <p className="mt-2 text-base text-gray-600">
+                    登録後すぐに1日10回まで無料で利用できます。
+                  </p>
+                  <p className="mt-2 text-sm text-gray-500">
+                    ※ 無制限で使いたい場合は、
                     <a
                       href="https://aistudio.google.com/app/apikey"
                       target="_blank"
@@ -286,7 +293,7 @@ export default function LandingPageClient({
                     >
                       Google AI Studio
                     </a>
-                    からGemini APIキーを取得して入力してください。
+                    から無料で取得できるAPIキーを設定してください。
                   </p>
                 </div>
               </div>
