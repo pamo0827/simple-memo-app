@@ -98,7 +98,7 @@ export async function getPublicRecipesByUserPublicId(userPublicId: string): Prom
   // user_idに紐づく公開レシピを取得
   const { data: recipes, error: recipesError } = await supabase
     .from('recipes')
-    .select('id, name, description, ingredients, instructions, source_url, created_at')
+    .select('id, name, description, ingredients, instructions, sections, source_url, created_at')
     .eq('user_id', userSettings.user_id)
     .order('display_order', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
