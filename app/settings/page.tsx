@@ -38,6 +38,9 @@ export default function SettingsPage() {
 
   const [showDefaultPrompts, setShowDefaultPrompts] = useState(false)
 
+  // 無料枠かどうかの判定（APIキーが設定されていない場合は無料枠）
+  const isFreeTier = !geminiApiKey || geminiApiKey.trim() === ''
+
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -131,13 +134,20 @@ export default function SettingsPage() {
     setApiKeysSaving(true)
     setApiKeysMessage('')
 
+    // 無料枠の場合はカスタムプロンプトを強制的にnullにする
+    const finalCustomPrompt = isFreeTier ? null : (customPrompt.trim() || null)
+
     const success = await upsertUserSettings(userId, {
       gemini_api_key: geminiApiKey,
       ai_summary_enabled: aiSummaryEnabled,
-      custom_prompt: customPrompt.trim() || null,
+      custom_prompt: finalCustomPrompt,
     })
     if (success) {
       setApiKeysMessage('AI設定を保存しました')
+      // 無料枠の場合、保存後にカスタムプロンプトをクリア
+      if (isFreeTier && customPrompt) {
+        setCustomPrompt('')
+      }
     } else {
       setApiKeysMessage('保存に失敗しました')
     }
@@ -237,6 +247,15 @@ export default function SettingsPage() {
           <form onSubmit={handleApiKeysSave} className="space-y-6">
             <h2 className="text-lg font-semibold">AI設定</h2>
 
+            {isFreeTier && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <p className="text-sm text-orange-800">
+                  <strong>🎁 無料枠を利用中</strong>（1日10回まで）<br />
+                  独自のGemini APIキーを設定すると、無制限でご利用いただけます。
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="geminiApiKey">Gemini APIキー</Label>
               <Input id="geminiApiKey" type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="AIzaSy..." />
@@ -265,10 +284,17 @@ export default function SettingsPage() {
                 onChange={(e) => setCustomPrompt(e.target.value)}
                 placeholder="AIに特定の指示を与える場合はここに入力してください。空欄の場合はデフォルトプロンプトを使用します。"
                 className="min-h-[150px] text-sm"
+                disabled={isFreeTier}
               />
-              <p className="text-xs text-gray-500">
-                例: 「レシピの場合は材料を箇条書きで、作り方を番号付きリストで抽出してください」
-              </p>
+              {isFreeTier ? (
+                <p className="text-xs text-orange-600 font-semibold">
+                  ⚠️ カスタムプロンプトは無料枠では使用できません。独自のGemini APIキーを設定すると利用可能になります。
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  例: 「レシピの場合は材料を箇条書きで、作り方を番号付きリストで抽出してください」
+                </p>
+              )}
               <div className="mt-4">
                 <button
                   type="button"
