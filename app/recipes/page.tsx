@@ -65,6 +65,9 @@ export default function HomePage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [sidebarEnabled, setSidebarEnabled] = useState(false)
   const [isShareDialogOpen, setShareDialogOpen] = useState(false) // このstateは残します
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | undefined>(undefined)
+  const [bulkError, setBulkError] = useState('')
   const router = useRouter()
 
   // カテゴリーへのrefを保持
@@ -471,6 +474,129 @@ export default function HomePage() {
     }
   }
 
+  const handleAddMultipleUrls = async (e: React.FormEvent, urls: string[], useAI: boolean = true) => {
+    e.preventDefault()
+    if (urls.length === 0 || !userId) return
+
+    setIsBulkProcessing(true)
+    setBulkError('')
+    setBulkProgress({ current: 0, total: urls.length })
+
+    const newRecipes: Recipe[] = []
+    let successCount = 0
+    let errorCount = 0
+
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i]
+      setBulkProgress({ current: i + 1, total: urls.length })
+
+      try {
+        // URLの種類を判定
+        const isYouTube = url.includes('youtube.com') || url.includes('youtu.be')
+
+        let apiEndpoint = '/api/scrape-recipe'
+        if (isYouTube) {
+          apiEndpoint = '/api/scrape-youtube'
+        }
+
+        const response = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, userId, skipAI: !useAI }),
+        })
+
+        if (!response.ok) {
+          errorCount++
+          continue
+        }
+
+        const result = await response.json()
+
+        if (result.type === 'recipe') {
+          const recipeData = result.data
+          const ingredients = (recipeData.ingredients || '').replace(/\\n/g, '\n')
+          const instructions = (recipeData.instructions || '').replace(/\\n/g, '\n')
+          const recipe = await createRecipe(userId, {
+            name: recipeData.name || '名称未設定のレシピ',
+            ingredients: ingredients,
+            instructions: instructions,
+            source_url: url,
+          })
+          if (recipe) {
+            newRecipes.push(recipe)
+            successCount++
+          }
+        } else if (result.type === 'summary') {
+          const summaryData = (result.data || '').replace(/\\n/g, '\n')
+
+          // タイトルを抽出
+          let name = ''
+          const lines = summaryData.split('\n').filter((line: string) => line.trim())
+
+          const headingLine = lines.find((line: string) => line.match(/^#{1,3}\s+(.+)/))
+          if (headingLine) {
+            name = headingLine.replace(/^#{1,3}\s+/, '').trim()
+          }
+
+          if (!name) {
+            const contentLine = lines.find((line: string) => !line.match(/^[#\-*•]/) && line.length > 3)
+            if (contentLine) {
+              name = contentLine.substring(0, 50).trim()
+              if (contentLine.length > 50) name += '...'
+            }
+          }
+
+          if (!name && url) {
+            try {
+              const urlObj = new URL(url)
+              const hostname = urlObj.hostname.replace('www.', '')
+              name = `${hostname} のメモ`
+            } catch {
+              name = 'メモ'
+            }
+          }
+
+          if (!name) {
+            name = 'メモ'
+          }
+
+          const recipe = await createRecipe(userId, {
+            name: name,
+            ingredients: '',
+            instructions: summaryData,
+            source_url: url,
+          })
+          if (recipe) {
+            newRecipes.push(recipe)
+            successCount++
+          }
+        } else {
+          errorCount++
+        }
+      } catch (error) {
+        console.error(`Error processing URL ${url}:`, error)
+        errorCount++
+      }
+
+      // 短い遅延を入れてレート制限を避ける
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+
+    // 成功したレシピを一括で追加
+    if (newRecipes.length > 0) {
+      setRecipes([...newRecipes, ...recipes])
+    }
+
+    setIsBulkProcessing(false)
+    setBulkProgress(undefined)
+
+    if (errorCount > 0) {
+      setBulkError(`${successCount}件追加、${errorCount}件エラー`)
+    } else {
+      setAddDialogOpen(false)
+    }
+  }
+
   const filteredListItems = useMemo(() => {
     if (!searchTerm) return listItems
     const lowercasedTerm = searchTerm.toLowerCase()
@@ -718,11 +844,15 @@ export default function HomePage() {
         onAddFromUrl={handleAddFromUrl}
         onAddFromFile={handleAddFromFile}
         onAddBasic={handleAddBasic}
+        onAddMultipleUrls={handleAddMultipleUrls}
         isScraping={isScraping}
         scrapeError={scrapeError}
         isUploading={isUploading}
         uploadError={uploadError}
         uploadSuccess={uploadSuccess}
+        isBulkProcessing={isBulkProcessing}
+        bulkProgress={bulkProgress}
+        bulkError={bulkError}
       />
       <ShareAllDialog
         open={isShareDialogOpen}
