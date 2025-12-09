@@ -179,15 +179,24 @@ export function AddRecipeDialog({
                       </div>
                     </div>
                   ))}
-                  <div className="mt-4 text-xs text-gray-500 text-center space-y-2">
-                    <div>
+                  <div className="mt-4 space-y-4">
+                    <div className="text-xs text-gray-500 text-center">
                       <p>※ 内容を読み取れない場合やAPIキーが未設定の場合は、</p>
                       <p>URLのみを保存した基本メモが作成されます。</p>
                     </div>
-                    <div className="pt-2 border-t border-gray-200">
-                      <p className="font-semibold text-red-600">動作しないサイト</p>
-                      <p>X (Twitter)、Instagram</p>
-                      <p className="text-xs">※ これらのサイトはログインが必要なため、内容を取得できません</p>
+                    <div className="pt-4 border-t border-gray-200">
+                      <h3 className="text-xs font-medium text-gray-500 mb-2 text-center">動作しないサイト</h3>
+                      <div className="flex items-center gap-x-5 gap-y-3 flex-wrap justify-center">
+                        <div className="flex items-center gap-2 text-gray-400 cursor-not-allowed group">
+                          <img src="https://www.google.com/s2/favicons?domain=x.com&sz=64" alt="X (Twitter) favicon" className="h-4 w-4 rounded-full opacity-50" />
+                          <span className="text-xs font-medium">X (Twitter)</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-400 cursor-not-allowed group">
+                          <img src="https://www.google.com/s2/favicons?domain=instagram.com&sz=64" alt="Instagram favicon" className="h-4 w-4 rounded-full opacity-50" />
+                          <span className="text-xs font-medium">Instagram</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-400 text-center mt-2">※ これらのサイトはログインが必要なため、内容を取得できません</p>
                     </div>
                   </div>
                 </div>
