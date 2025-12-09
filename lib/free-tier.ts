@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
-export const DEFAULT_API_KEY = 'AIzaSyD5Po5cQ-5DU78lXNj5VgtCxweh7uvT4PY'
+// 無料枠用のデフォルトAPIキー（環境変数から取得）
+const DEFAULT_API_KEY = process.env.GEMINI_DEFAULT_API_KEY || ''
 export const FREE_TIER_DAILY_LIMIT = 10
 
 export interface UsageCheckResult {
@@ -46,6 +47,17 @@ export async function checkAndUpdateUsage(userId: string): Promise<UsageCheckRes
       apiKey: settings.gemini_api_key,
       isFreeTier: false,
       remainingUsage: -1 // 無制限
+    }
+  }
+
+  // デフォルトAPIキーが設定されていない場合のエラー
+  if (!DEFAULT_API_KEY) {
+    return {
+      allowed: false,
+      apiKey: '',
+      isFreeTier: true,
+      remainingUsage: 0,
+      errorMessage: 'デフォルトAPIキーが設定されていません。管理者に連絡してください。'
     }
   }
 

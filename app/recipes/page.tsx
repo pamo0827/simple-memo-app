@@ -65,8 +65,6 @@ export default function HomePage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [sidebarEnabled, setSidebarEnabled] = useState(false)
   const [isShareDialogOpen, setShareDialogOpen] = useState(false) // このstateは残します
-  const [hasApiKey, setHasApiKey] = useState<boolean>(true)
-  const [showApiKeyWarning, setShowApiKeyWarning] = useState<boolean>(false)
   const router = useRouter()
 
   // カテゴリーへのrefを保持
@@ -126,15 +124,6 @@ export default function HomePage() {
       const sidebarSetting = settings.sidebar_visible ?? false
       setSidebarEnabled(sidebarSetting)
       setIsSidebarOpen(sidebarSetting)
-
-      // Gemini APIキーの状態をチェック
-      const hasKey = !!settings.gemini_api_key
-      setHasApiKey(hasKey)
-      setShowApiKeyWarning(!hasKey)
-    } else {
-      // 設定がない場合は警告を表示
-      setHasApiKey(false)
-      setShowApiKeyWarning(true)
     }
 
     loadInitialData(user.id)
@@ -530,42 +519,6 @@ export default function HomePage() {
       {/* メインコンテンツ */}
       <div className="flex-1 overflow-x-hidden">
         <div className="max-w-4xl mx-auto px-4 py-8">
-          {/* Gemini APIキー未設定の警告 */}
-          {showApiKeyWarning && (
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="text-amber-800 font-semibold mb-2">Gemini APIキーの設定が必要です</h3>
-                  <p className="text-amber-700 text-sm mb-3">
-                    メモの自動抽出機能を使用するには、Gemini APIキーを設定してください。
-                    <a
-                      href="https://aistudio.google.com/app/apikey"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline ml-1"
-                    >
-                      Google AI Studio
-                    </a>
-                    から無料で取得できます。
-                  </p>
-                  <Button
-                    size="sm"
-                    onClick={() => router.push('/settings')}
-                    className="bg-amber-600 hover:bg-amber-700"
-                  >
-                    設定ページへ
-                  </Button>
-                </div>
-                <button
-                  onClick={() => setShowApiKeyWarning(false)}
-                  className="text-amber-600 hover:text-amber-800 ml-4"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          )}
-
           <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100">
             <div className="flex items-center gap-2">
               {sidebarEnabled && (
