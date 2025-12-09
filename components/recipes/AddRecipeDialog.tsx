@@ -137,6 +137,15 @@ export function AddRecipeDialog({
     setUrlInputText('')
   }
 
+  const handleFileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedFile) return
+    await onAddFromFile(e, selectedFile, useAI)
+    setSelectedFile(null)
+    const fileInput = document.getElementById('file-upload-dialog') as HTMLInputElement
+    if (fileInput) fileInput.value = ''
+  }
+
   const handleBasicSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!basicTitle.trim()) return
@@ -217,27 +226,6 @@ https://example.com/1, https://example.com/2
                       : (useAI ? '内容を解析' : 'URLを保存')}
                   </Button>
                 </form>
-                <div className="mt-6 space-y-4">
-                  <h2 className="text-xs font-semibold text-gray-500 text-center">AI要約の動作確認済みサイト</h2>
-                  {siteGroups.map((group) => (
-                    <div key={group.genre}>
-                      <h3 className="text-xs font-medium text-gray-500 mb-2 text-center">{group.genre}</h3>
-                      <div className="flex items-center gap-x-5 gap-y-3 flex-wrap justify-center">
-                        {group.sites.map((site) => (
-                          <a key={site.name} href={site.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors group">
-                            <img src={site.favicon} alt={`${site.name} favicon`} className="h-4 w-4 rounded-full" />
-                            <span className="text-xs font-medium group-hover:underline">{site.name}</span>
-                            {site.note && <span className="text-xs text-gray-400">{site.note}</span>}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="mt-4 space-y-4">
-                    <div className="text-xs text-gray-500 text-center">
-                      <p>※ 内容を読み取れない場合やAPIキーが未設定の場合は、</p>
-                      <p>URLのみを保存した基本メモが作成されます。</p>
-                    </div>
                     <div className="pt-4 border-t border-gray-200">
                       <h3 className="text-xs font-medium text-gray-500 mb-2 text-center">AI要約がが動作しないサイト</h3>
                       <div className="flex items-center gap-x-5 gap-y-3 flex-wrap justify-center">
@@ -252,8 +240,6 @@ https://example.com/1, https://example.com/2
                       </div>
                       <p className="text-xs text-gray-400 text-center mt-2">※ これらのサイトはログインが必要なため、AIで内容を要約できません。リンク先と基本メモが追加されます。</p>
                     </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
