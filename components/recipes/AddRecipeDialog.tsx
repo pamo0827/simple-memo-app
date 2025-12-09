@@ -124,6 +124,19 @@ export function AddRecipeDialog({
     return Array.from(new Set(urls))
   }
 
+  const handleUrlSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!urlInputText.trim()) return
+
+    const urls = extractUrls(urlInputText)
+    if (urls.length === 0) {
+      return
+    }
+
+    await onAddMultipleUrls(e, urls, useAI)
+    setUrlInputText('')
+  }
+
   const handleBasicSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!basicTitle.trim()) return
