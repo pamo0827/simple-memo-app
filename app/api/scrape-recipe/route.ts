@@ -38,13 +38,14 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('ai_summary_enabled, custom_prompt')
+      .select('ai_summary_enabled, custom_prompt, summary_length')
       .eq('user_id', userId)
       .maybeSingle()
 
     const apiKey = usageCheck.apiKey
     const aiSummaryEnabled = settings?.ai_summary_enabled ?? true
     const customPrompt = usageCheck.isFreeTier ? null : settings?.custom_prompt
+    const summaryLength = settings?.summary_length ?? 3
 
     // AI要約が無効の場合の処理
     if (!aiSummaryEnabled) {
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract recipe using the centralized AI function
-    const result = await processText(text, apiKey, customPrompt)
+    const result = await processText(text, apiKey, customPrompt, summaryLength)
 
     return NextResponse.json(result)
 

@@ -47,13 +47,14 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('ai_summary_enabled, custom_prompt')
+      .select('ai_summary_enabled, custom_prompt, summary_length')
       .eq('user_id', userId)
       .maybeSingle()
 
     const apiKey = usageCheck.apiKey
     const aiSummaryEnabled = settings?.ai_summary_enabled ?? true
     const customPrompt = usageCheck.isFreeTier ? null : settings?.custom_prompt
+    const summaryLength = settings?.summary_length ?? 3
 
     // AI要約が無効の場合の処理
     if (!aiSummaryEnabled) {
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     if (isShortsVideo) {
       // Shortsの場合、動画を直接解析
       console.log('Analyzing YouTube Shorts with Gemini video API...')
-      result = await processVideo(url, apiKey, customPrompt)
+      result = await processVideo(url, apiKey, customPrompt, summaryLength)
     } else {
       // 通常の動画の場合、字幕とメタデータを取得
       // youtubei.jsライブラリを使用して、動画の字幕（transcript）と説明文を取得
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 字幕とメタデータからコンテンツを抽出
-      result = await processText(fullText, apiKey, customPrompt)
+      result = await processText(fullText, apiKey, customPrompt, summaryLength)
     }
 
     return NextResponse.json(result)

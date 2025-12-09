@@ -2,6 +2,19 @@ import { GoogleGenerativeAI, ModelParams, Content } from '@google/generative-ai'
 
 const models = ['gemini-2.5-flash', 'gemini-2.5-pro'];
 
+// 要約の詳細レベルに応じた文字数指示を生成
+function getSummaryLengthInstruction(summaryLength: number = 3): string {
+  const lengthMap: Record<number, string> = {
+    1: '\n\n要約は50〜100文字程度の簡潔な箇条書きで記述してください。最も重要なポイントのみを含めてください。',
+    2: '\n\n要約は100〜200文字程度で記述してください。重要なポイントを簡潔にまとめてください。',
+    3: '\n\n要約は200〜400文字程度で記述してください。内容の主要な点を適度な詳しさでまとめてください。',
+    4: '\n\n要約は400〜800文字程度で記述してください。詳細な情報を含めて、内容を丁寧に説明してください。',
+    5: '\n\n要約は800文字以上で詳細に記述してください。可能な限り多くの情報を含めて、内容を網羅的に説明してください。'
+  };
+
+  return lengthMap[summaryLength] || lengthMap[3];
+}
+
 export const systemPrompt = `あなたは、与えられたウェブページやテキストの内容を分析するアシスタントです。
 
 まず、内容が「レシピ」に関するものかどうかを判断してください。
@@ -66,12 +79,13 @@ function extractJson(text: string): string | null {
   return null;
 }
 
-export async function processText(text: string, apiKey: string, customPrompt?: string | null) {
+export async function processText(text: string, apiKey: string, customPrompt?: string | null, summaryLength: number = 3) {
   if (!text) {
     throw new Error('Input text is empty.')
   }
 
-  const prompt = customPrompt || systemPrompt;
+  const lengthInstruction = getSummaryLengthInstruction(summaryLength);
+  const prompt = customPrompt || (systemPrompt + lengthInstruction);
 
   let resultFromAI: string | undefined;
   try {
@@ -136,12 +150,13 @@ export const imageSystemPrompt = `あなたは画像から情報を抽出する�
 **どちらでもない、またはエラーの場合：**
 {"type": "error", "data": "内容を処理できませんでした。"} を返してください。`
 
-export async function processImage(base64Image: string, apiKey: string, caption?: string, customPrompt?: string | null) {
+export async function processImage(base64Image: string, apiKey: string, caption?: string, customPrompt?: string | null, summaryLength: number = 3) {
   if (!base64Image) {
     throw new Error('Image data is empty.')
   }
 
-  const systemInst = customPrompt || imageSystemPrompt;
+  const lengthInstruction = getSummaryLengthInstruction(summaryLength);
+  const systemInst = customPrompt || (imageSystemPrompt + lengthInstruction);
 
   try {
     const prompt = caption
@@ -212,12 +227,13 @@ export const videoSystemPrompt = `あなたは動画から情報を抽出する�
 **どちらでもない、またはエラーの場合：**
 {"type": "error", "data": "内容を処理できませんでした。"} を返してください。`
 
-export async function processVideo(videoUrl: string, apiKey: string, customPrompt?: string | null) {
+export async function processVideo(videoUrl: string, apiKey: string, customPrompt?: string | null, summaryLength: number = 3) {
   if (!videoUrl) {
     throw new Error('Video URL is empty.')
   }
 
-  const systemInst = customPrompt || videoSystemPrompt;
+  const lengthInstruction = getSummaryLengthInstruction(summaryLength);
+  const systemInst = customPrompt || (videoSystemPrompt + lengthInstruction);
 
   try {
     const content: Content = [

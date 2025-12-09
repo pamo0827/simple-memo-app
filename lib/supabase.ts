@@ -48,6 +48,7 @@ export type UserSettings = {
   is_using_free_tier: boolean
   daily_usage_count: number
   last_usage_date: string
+  summary_length: number
   created_at: string
   updated_at: string
 }

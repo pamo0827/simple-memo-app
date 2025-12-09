@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [geminiApiKey, setGeminiApiKey] = useState('')
   const [aiSummaryEnabled, setAiSummaryEnabled] = useState(true)
   const [customPrompt, setCustomPrompt] = useState('')
+  const [summaryLength, setSummaryLength] = useState(3)
   const [apiKeysSaving, setApiKeysSaving] = useState(false)
   const [apiKeysMessage, setApiKeysMessage] = useState('')
 
@@ -62,6 +63,7 @@ export default function SettingsPage() {
       setGeminiApiKey(settings.gemini_api_key || '')
       setAiSummaryEnabled(settings.ai_summary_enabled ?? true)
       setCustomPrompt(settings.custom_prompt || '')
+      setSummaryLength(settings.summary_length ?? 3)
       setSidebarVisible(settings.sidebar_visible ?? false)
     }
     setLoading(false)
@@ -141,6 +143,7 @@ export default function SettingsPage() {
       gemini_api_key: geminiApiKey,
       ai_summary_enabled: aiSummaryEnabled,
       custom_prompt: finalCustomPrompt,
+      summary_length: summaryLength,
     })
     if (success) {
       setApiKeysMessage('AI設定を保存しました')
@@ -276,6 +279,37 @@ export default function SettingsPage() {
             <p className="text-xs text-gray-500">
               OFFにすると、URLや画像を追加する際にAIによる自動要約を行わず、基本情報のみを保存します。
             </p>
+            <div className="space-y-2">
+              <Label htmlFor="summaryLength">要約の詳細レベル</Label>
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-gray-500 min-w-[40px]">最短</span>
+                <input
+                  id="summaryLength"
+                  type="range"
+                  min="1"
+                  max="5"
+                  value={summaryLength}
+                  onChange={(e) => setSummaryLength(Number(e.target.value))}
+                  className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+                <span className="text-xs text-gray-500 min-w-[40px]">最長</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-400 px-12">
+                <span>1</span>
+                <span>2</span>
+                <span>3</span>
+                <span>4</span>
+                <span>5</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                現在の設定: <strong>{summaryLength}</strong>
+                {summaryLength === 1 && ' (50〜100文字程度)'}
+                {summaryLength === 2 && ' (100〜200文字程度)'}
+                {summaryLength === 3 && ' (200〜400文字程度 - 標準)'}
+                {summaryLength === 4 && ' (400〜800文字程度)'}
+                {summaryLength === 5 && ' (800文字以上)'}
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="customPrompt">カスタムプロンプト（任意）</Label>
               <Textarea

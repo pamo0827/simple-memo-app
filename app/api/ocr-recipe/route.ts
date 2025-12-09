@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const { data: userSettings, error: userError } = await supabase
     .from('user_settings')
-    .select('ai_summary_enabled, custom_prompt')
+    .select('ai_summary_enabled, custom_prompt, summary_length')
     .eq('user_id', userId)
     .single()
 
@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
   const apiKey = usageCheck.apiKey
   const aiSummaryEnabled = userSettings.ai_summary_enabled ?? true
   const customPrompt = usageCheck.isFreeTier ? null : userSettings.custom_prompt
+  const summaryLength = userSettings.summary_length ?? 3
 
   // AI要約が無効の場合の処理
   if (!aiSummaryEnabled) {
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // 画像から情報を抽出
     // Gemini Vision APIを使用して、画像内のテキスト、URL、レシピ情報などを抽出
-    const result = await processImage(base64Image, apiKey, undefined, customPrompt)
+    const result = await processImage(base64Image, apiKey, undefined, customPrompt, summaryLength)
 
     // 抽出結果をフロントエンドに返す
     return NextResponse.json(result)
