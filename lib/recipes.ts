@@ -83,15 +83,16 @@ export async function updateRecipeOrder(recipeIds: string[]): Promise<boolean> {
 }
 
 export async function getPublicRecipesByUserPublicId(userPublicId: string): Promise<Recipe[] | null> {
-  // user_settingsからuser_idを取得
-  const { data: userSettings, error: userSettingsError } = await supabase
-    .from('user_settings')
-    .select('user_id, are_recipes_public')
+  // Use the secure View to find the user.
+  // This avoids direct access to user_settings which is restricted by RLS.
+  const { data: userProfile, error: userError } = await supabase
+    .from('public_user_profiles')
+    .select('user_id')
     .eq('public_share_id', userPublicId)
     .single()
 
-  if (userSettingsError || !userSettings || !userSettings.are_recipes_public) {
-    console.error('ユーザー設定取得エラーまたは公開設定がオフ:', userSettingsError)
+  if (userError || !userProfile) {
+    console.error('ユーザー設定取得エラーまたは公開設定がオフ:', userError)
     return null
   }
 
@@ -99,7 +100,7 @@ export async function getPublicRecipesByUserPublicId(userPublicId: string): Prom
   const { data: recipes, error: recipesError } = await supabase
     .from('recipes')
     .select('id, name, description, ingredients, instructions, sections, source_url, created_at')
-    .eq('user_id', userSettings.user_id)
+    .eq('user_id', userProfile.user_id)
     .order('display_order', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
 

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { processImage } from '@/lib/ai'
 import { checkAndUpdateUsage } from '@/lib/free-tier'
 import { authenticateRequest } from '@/lib/auth'
+import { withRateLimit } from '@/lib/rate-limit'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -12,7 +13,8 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024
 // 許可する画像形式
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-export async function POST(request: NextRequest) {
+// OCRは負荷が高いため、レート制限を厳しく設定（15分間に20回）
+async function postHandler(request: NextRequest) {
   try {
     // セキュリティ: 認証トークンからユーザーIDを取得
     const authResult = await authenticateRequest(request)
@@ -137,3 +139,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: userMessage }, { status: statusCode })
   }
 }
+
+export const POST = withRateLimit(postHandler, 20, 15 * 60 * 1000)
+

@@ -5,11 +5,12 @@ import { extractYouTubeVideoId, getYouTubeFullText, isYouTubeShorts } from '@/li
 import { checkAndUpdateUsage } from '@/lib/free-tier'
 import { authenticateRequest } from '@/lib/auth'
 import { isAllowedUrl } from '@/lib/url-validation'
+import { withRateLimit } from '@/lib/rate-limit'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     // セキュリティ: 認証トークンからユーザーIDを取得（リクエストボディからは受け取らない）
     const authResult = await authenticateRequest(request)
@@ -150,3 +151,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: userMessage }, { status: statusCode })
   }
 }
+
+export const POST = withRateLimit(postHandler, 100, 15 * 60 * 1000)
+
