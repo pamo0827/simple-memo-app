@@ -73,7 +73,6 @@ const siteGroups: SiteGroup[] = [
 interface AddRecipeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAddFromUrl: (e: React.FormEvent, url: string, useAI: boolean) => Promise<void>
   onAddFromFile: (e: React.FormEvent, file: File, useAI: boolean) => Promise<void>
   onAddBasic: (e: React.FormEvent, title: string, content: string) => Promise<void>
   onAddMultipleUrls: (e: React.FormEvent, urls: string[], useAI: boolean) => Promise<void>
@@ -90,7 +89,6 @@ interface AddRecipeDialogProps {
 export function AddRecipeDialog({
   open,
   onOpenChange,
-  onAddFromUrl,
   onAddFromFile,
   onAddBasic,
   onAddMultipleUrls,
@@ -103,41 +101,17 @@ export function AddRecipeDialog({
   bulkProgress,
   bulkError,
 }: AddRecipeDialogProps) {
-  const [recipeUrl, setRecipeUrl] = useState('')
+  const [urlInputText, setUrlInputText] = useState('') // Renamed from recipeUrl
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [useAI, setUseAI] = useState(true)
   const [basicTitle, setBasicTitle] = useState('')
   const [basicContent, setBasicContent] = useState('')
-  const [bulkUrlsText, setBulkUrlsText] = useState('')
+  // bulkUrlsText state removed as it's integrated
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0])
     }
-  }
-
-  const handleUrlSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!recipeUrl) return
-    await onAddFromUrl(e, recipeUrl, useAI)
-    setRecipeUrl('')
-  }
-
-  const handleFileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedFile) return
-    await onAddFromFile(e, selectedFile, useAI)
-    setSelectedFile(null)
-    const fileInput = document.getElementById('file-upload-dialog') as HTMLInputElement
-    if (fileInput) fileInput.value = ''
-  }
-
-  const handleBasicSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!basicTitle.trim()) return
-    await onAddBasic(e, basicTitle, basicContent)
-    setBasicTitle('')
-    setBasicContent('')
   }
 
   // URLを抽出する関数（通常のテキストとCSV形式の両方に対応）
@@ -150,18 +124,15 @@ export function AddRecipeDialog({
     return Array.from(new Set(urls))
   }
 
-  const handleBulkUrlSubmit = async (e: React.FormEvent) => {
+  const handleBasicSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!bulkUrlsText.trim()) return
-
-    const urls = extractUrls(bulkUrlsText)
-    if (urls.length === 0) {
-      return
-    }
-
-    await onAddMultipleUrls(e, urls, useAI)
-    setBulkUrlsText('')
+    if (!basicTitle.trim()) return
+    await onAddBasic(e, basicTitle, basicContent)
+    setBasicTitle('')
+    setBasicContent('')
   }
+
+  const isProcessingUrls = isScraping || isBulkProcessing; // Consolidate processing states for URL input
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -170,9 +141,9 @@ export function AddRecipeDialog({
           <DialogTitle className="text-center">メモの追加</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="url" className="mt-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3"> {/* Changed from 4 to 3 columns */}
             <TabsTrigger value="url">URLから追加</TabsTrigger>
-            <TabsTrigger value="bulk">まとめて追加</TabsTrigger>
+            {/* "まとめて追加"タブを削除 */}
             <TabsTrigger value="file">写真から追加</TabsTrigger>
             <TabsTrigger value="basic">何もなしで追加</TabsTrigger>
           </TabsList>
@@ -181,7 +152,35 @@ export function AddRecipeDialog({
               <CardContent className="pt-6">
                 <form onSubmit={handleUrlSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Input id="url-input" type="url" value={recipeUrl} onChange={(e) => setRecipeUrl(e.target.value)} placeholder="https://cookpad.com/recipe/..." required disabled={isScraping} className="text-base h-11" />
+                    <Label htmlFor="url-input">URLを入力</Label>
+                    <Textarea // Changed from Input to Textarea
+                      id="url-input"
+                      value={urlInputText}
+                      onChange={(e) => setUrlInputText(e.target.value)}
+                      placeholder="URLを1つ、または複数入力してください。
+改行、カンマ、スペースで区切られたURLを自動検出します。
+文章中のURLも抽出可能です。
+
+例1（単一URL）：
+https://cookpad.com/recipe/123
+
+例2（複数URL - 改行区切り）：
+https://cookpad.com/recipe/123
+https://youtube.com/watch?v=abc
+
+例3（複数URL - CSV形式）：
+https://example.com/1, https://example.com/2
+
+例4（文章中のURL）：
+このレシピが良さそう https://cookpad.com/recipe/123
+参考動画はこちら https://youtube.com/watch?v=abc"
+                      required
+                      disabled={isProcessingUrls}
+                      className="min-h-[180px] text-base font-mono text-sm"
+                    />
+                    <p className="text-xs text-gray-500">
+                      {urlInputText.trim() && `検出されたURL: ${extractUrls(urlInputText).length}件`}
+                    </p>
                   </div>
                   <div className="flex items-center space-x-2 py-2">
                     <Switch
@@ -193,8 +192,17 @@ export function AddRecipeDialog({
                       AI要約を使用する
                     </Label>
                   </div>
-                  {scrapeError && <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg">{scrapeError}</div>}
-                  <Button type="submit" disabled={isScraping || !recipeUrl} className="w-full h-11">{isScraping ? '解析中...' : (useAI ? '内容を解析' : 'URLを保存')}</Button>
+                  {(scrapeError || bulkError) && <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg">{scrapeError || bulkError}</div>}
+                  {isProcessingUrls && bulkProgress && ( // Show progress for multiple URLs
+                    <div className="p-3 text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg">
+                      処理中: {bulkProgress.current} / {bulkProgress.total} 件
+                    </div>
+                  )}
+                  <Button type="submit" disabled={isProcessingUrls || !urlInputText.trim() || extractUrls(urlInputText).length === 0} className="w-full h-11">
+                    {isProcessingUrls
+                      ? `処理中... (${bulkProgress?.current || 0}/${bulkProgress?.total || 0})`
+                      : (useAI ? '内容を解析' : 'URLを保存')}
+                  </Button>
                 </form>
                 <div className="mt-6 space-y-4">
                   <h2 className="text-xs font-semibold text-gray-500 text-center">AI要約の動作確認済みサイト</h2>
@@ -236,60 +244,7 @@ export function AddRecipeDialog({
               </CardContent>
             </Card>
           </TabsContent>
-          <TabsContent value="bulk">
-            <Card className="border-none shadow-none">
-              <CardContent className="pt-6">
-                <form onSubmit={handleBulkUrlSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="bulk-urls">URL一覧</Label>
-                    <Textarea
-                      id="bulk-urls"
-                      value={bulkUrlsText}
-                      onChange={(e) => setBulkUrlsText(e.target.value)}
-                      placeholder="複数のURLを入力してください&#10;&#10;例1（改行区切り）：&#10;https://cookpad.com/recipe/123&#10;https://youtube.com/watch?v=abc&#10;&#10;例2（CSV形式）：&#10;https://example.com/1, https://example.com/2&#10;&#10;例3（文章中のURL）：&#10;このレシピが良さそう https://cookpad.com/recipe/123&#10;参考動画はこちら https://youtube.com/watch?v=abc"
-                      className="min-h-[200px] text-base font-mono text-sm"
-                      disabled={isBulkProcessing}
-                    />
-                    <p className="text-xs text-gray-500">
-                      {bulkUrlsText.trim() && `検出されたURL: ${extractUrls(bulkUrlsText).length}件`}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2 py-2">
-                    <Switch
-                      id="use-ai-bulk"
-                      checked={useAI}
-                      onCheckedChange={setUseAI}
-                      disabled={isBulkProcessing}
-                    />
-                    <Label htmlFor="use-ai-bulk" className="cursor-pointer text-sm">
-                      AI要約を使用する
-                    </Label>
-                  </div>
-                  {bulkError && <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg">{bulkError}</div>}
-                  {isBulkProcessing && bulkProgress && (
-                    <div className="p-3 text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg">
-                      処理中: {bulkProgress.current} / {bulkProgress.total} 件
-                    </div>
-                  )}
-                  <Button
-                    type="submit"
-                    disabled={isBulkProcessing || !bulkUrlsText.trim() || extractUrls(bulkUrlsText).length === 0}
-                    className="w-full h-11"
-                  >
-                    {isBulkProcessing
-                      ? `処理中... (${bulkProgress?.current || 0}/${bulkProgress?.total || 0})`
-                      : (useAI ? '一括解析' : '一括保存')}
-                  </Button>
-                </form>
-                <div className="text-xs text-gray-500 text-center mt-6 space-y-2">
-                  <p>✨ 複数のURLを一度に追加できます</p>
-                  <p>📝 改行、カンマ、スペースで区切られたURLを自動検出</p>
-                  <p>📋 CSV形式やメモアプリからのコピペにも対応</p>
-                  <p className="text-xs text-gray-400 mt-2">※ URLは順番に処理されます。エラーが発生した場合は次のURLに進みます。</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+
           <TabsContent value="file">
             <Card className="border-none shadow-none">
               <CardContent className="pt-6">

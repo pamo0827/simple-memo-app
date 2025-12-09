@@ -15,7 +15,7 @@
     --secondary: 33 44% 87%; /* 暖かいベージュ */
     --secondary-foreground: 25 45% 35%;
     --muted: 42 21% 93%;
-    --muted-foreground: 42 15% 45%;
+    --muted-foreground: 42 15% 65%; /* Lighter placeholder text */
     --accent: 14 77% 78%; /* やわらかいピーチ */
     --accent-foreground: 25 45% 25%;
     --destructive: 0 84% 70%;
