@@ -3,21 +3,41 @@ import { createClient } from '@supabase/supabase-js'
 import { processText, processVideo } from '@/lib/ai'
 import { extractYouTubeVideoId, getYouTubeFullText, isYouTubeShorts } from '@/lib/youtube'
 import { checkAndUpdateUsage } from '@/lib/free-tier'
+import { authenticateRequest } from '@/lib/auth'
+import { isAllowedUrl } from '@/lib/url-validation'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 export async function POST(request: NextRequest) {
   try {
-    const { url, userId, skipAI } = await request.json()
+    // セキュリティ: 認証トークンからユーザーIDを取得（リクエストボディからは受け取らない）
+    const authResult = await authenticateRequest(request)
+    if (!authResult.authenticated || !authResult.userId) {
+      return NextResponse.json(
+        { error: '認証が必要です。' },
+        { status: 401 }
+      )
+    }
+    const userId = authResult.userId
 
-    if (!url || !userId) {
-      return NextResponse.json({ error: 'URLとユーザーIDが必要です' }, { status: 400 })
+    const { url, skipAI } = await request.json()
+
+    if (!url) {
+      return NextResponse.json({ error: 'URLが必要です。' }, { status: 400 })
+    }
+
+    // セキュリティ: URL検証（SSRF対策）
+    if (!isAllowedUrl(url)) {
+      return NextResponse.json(
+        { error: '無効なURLです。' },
+        { status: 400 }
+      )
     }
 
     // YouTube URLの検証
     if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
-      return NextResponse.json({ error: '有効なYouTube URLを入力してください' }, { status: 400 })
+      return NextResponse.json({ error: '有効なYouTube URLを入力してください。' }, { status: 400 })
     }
 
     // 動画IDを抽出
@@ -99,8 +119,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result)
 
   } catch (error) {
-    console.error('YouTube scraping error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'エラーが発生しました'
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    // サーバーログには詳細を記録
+    console.error('[YouTube Scrape] Error:', error)
+
+    // セキュリティ: クライアントには一般的なメッセージのみ返す（情報漏洩防止）
+    let userMessage = 'YouTube動画の取得に失敗しました。'
+    let statusCode = 500
+
+    // 特定のエラーのみユーザーフレンドリーなメッセージを返す
+    if (error instanceof Error) {
+      if (error.message.includes('Invalid API key') || error.message.includes('API key')) {
+        userMessage = 'APIキーの設定に問題があります。設定を確認してください。'
+        statusCode = 400
+      } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
+        userMessage = 'リクエストがタイムアウトしました。もう一度お試しください。'
+        statusCode = 408
+      } else if (error.message.includes('quota') || error.message.includes('limit')) {
+        userMessage = 'APIの利用制限に達しました。しばらく待ってから再度お試しください。'
+        statusCode = 429
+      } else if (error.message.includes('Video unavailable') || error.message.includes('not available')) {
+        userMessage = 'この動画は利用できません。'
+        statusCode = 404
+      } else if (error.message.includes('Invalid or forbidden URL')) {
+        userMessage = '無効なURLです。'
+        statusCode = 400
+      }
+      // 内部エラーの詳細は返さない
+    }
+
+    return NextResponse.json({ error: userMessage }, { status: statusCode })
   }
 }
