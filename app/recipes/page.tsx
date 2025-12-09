@@ -243,112 +243,6 @@ export default function HomePage() {
     setIsSelectionMode(false)
   }
 
-  const handleAddFromUrl = async (e: React.FormEvent, url: string, useAI: boolean = true) => {
-    e.preventDefault()
-    if (!url || !userId) return
-    setIsScraping(true)
-    setScrapeError('')
-    try {
-      // URLの種類を判定
-      const isYouTube = url.includes('youtube.com') || url.includes('youtu.be')
-
-      let apiEndpoint = '/api/scrape-recipe'
-      if (isYouTube) {
-        apiEndpoint = '/api/scrape-youtube'
-      }
-
-      const response = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url, userId, skipAI: !useAI }),
-      })
-      if (!response.ok) {
-        const errorData = await response.json()
-        setScrapeError(errorData.error || 'レシピの取得に失敗しました')
-        return
-      }
-      const result = await response.json()
-
-      if (result.type === 'recipe') {
-        const recipeData = result.data
-        const ingredients = (recipeData.ingredients || '').replace(/\\n/g, '\n')
-        const instructions = (recipeData.instructions || '').replace(/\\n/g, '\n')
-        const recipe = await createRecipe(userId, {
-          name: recipeData.name || '名称未設定のレシピ',
-          ingredients: ingredients,
-          instructions: instructions,
-          source_url: url,
-        })
-        if (recipe) {
-          setRecipes([recipe, ...recipes])
-        }
-      } else if (result.type === 'summary') {
-        const summaryData = (result.data || '').replace(/\\n/g, '\n')
-        console.log('[Summary] Creating memo from URL:', url)
-        console.log('[Summary] Summary data:', summaryData)
-
-        // タイトルを抽出（より適切な方法で）
-        let name = ''
-        const lines = summaryData.split('\n').filter((line: string) => line.trim())
-
-        // 1. マークダウン見出しを探す
-        const headingLine = lines.find((line: string) => line.match(/^#{1,3}\s+(.+)/))
-        if (headingLine) {
-          name = headingLine.replace(/^#{1,3}\s+/, '').trim()
-        }
-
-        // 2. 見出しがない場合、最初の実質的なテキスト行を使用
-        if (!name) {
-          const contentLine = lines.find((line: string) => !line.match(/^[#\-*•]/) && line.length > 3)
-          if (contentLine) {
-            name = contentLine.substring(0, 50).trim()
-            if (contentLine.length > 50) name += '...'
-          }
-        }
-
-        // 3. それでもない場合、URLからサイト名を抽出
-        if (!name && url) {
-          try {
-            const urlObj = new URL(url)
-            const hostname = urlObj.hostname.replace('www.', '')
-            name = `${hostname} のメモ`
-          } catch {
-            name = 'メモ'
-          }
-        }
-
-        // 4. 最後の手段
-        if (!name) {
-          name = 'メモ'
-        }
-
-        console.log('[Summary] Creating recipe with:', { name, source_url: url })
-        const recipe = await createRecipe(userId, {
-          name: name,
-          ingredients: '', // サマリーの場合は材料なし
-          instructions: summaryData,
-          source_url: url,
-        })
-        console.log('[Summary] Created recipe:', recipe)
-        if (recipe) {
-          setRecipes([recipe, ...recipes])
-        }
-      } else {
-        setScrapeError(result.data || '解析できませんでした。')
-        return
-      }
-
-      setAddDialogOpen(false)
-    } catch (error) {
-      console.error('Scrape error:', error)
-      setScrapeError('レシピの取得に失敗しました')
-    } finally {
-      setIsScraping(false)
-    }
-  }
-
-
-
   const handleAddFromFile = async (e: React.FormEvent, file: File, useAI: boolean = true) => {
     e.preventDefault()
     if (!file || !userId) return
@@ -841,7 +735,6 @@ export default function HomePage() {
       <AddRecipeDialog
         open={isAddDialogOpen}
         onOpenChange={setAddDialogOpen}
-        onAddFromUrl={handleAddFromUrl}
         onAddFromFile={handleAddFromFile}
         onAddBasic={handleAddBasic}
         onAddMultipleUrls={handleAddMultipleUrls}
