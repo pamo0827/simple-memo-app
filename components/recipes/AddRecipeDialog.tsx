@@ -73,33 +73,41 @@ const siteGroups: SiteGroup[] = [
 interface AddRecipeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAddFromUrl: (e: React.FormEvent, url: string, useAI: boolean) => Promise<void>
   onAddFromFile: (e: React.FormEvent, file: File, useAI: boolean) => Promise<void>
   onAddBasic: (e: React.FormEvent, title: string, content: string) => Promise<void>
+  onAddMultipleUrls: (e: React.FormEvent, urls: string[], useAI: boolean) => Promise<void>
   isScraping: boolean
   scrapeError: string
   isUploading: boolean
   uploadError: string
   uploadSuccess: string
+  isBulkProcessing?: boolean
+  bulkProgress?: { current: number; total: number }
+  bulkError?: string
 }
 
 export function AddRecipeDialog({
   open,
   onOpenChange,
-  onAddFromUrl,
   onAddFromFile,
   onAddBasic,
+  onAddMultipleUrls,
   isScraping,
   scrapeError,
   isUploading,
   uploadError,
   uploadSuccess,
+  isBulkProcessing = false,
+  bulkProgress,
+  bulkError,
 }: AddRecipeDialogProps) {
-  const [recipeUrl, setRecipeUrl] = useState('')
+  const [urlInputText, setUrlInputText] = useState('') // Renamed from recipeUrl
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [useAI, setUseAI] = useState(true)
   const [basicTitle, setBasicTitle] = useState('')
   const [basicContent, setBasicContent] = useState('')
+  const [basicUrl, setBasicUrl] = useState('')
+  // bulkUrlsText state removed as it's integrated
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -107,11 +115,27 @@ export function AddRecipeDialog({
     }
   }
 
+  // URLを抽出する関数（通常のテキストとCSV形式の両方に対応）
+  const extractUrls = (text: string): string[] => {
+    // URLの正規表現パターン（http/https）
+    const urlPattern = /https?:\/\/[^\s,\n"'<>()]+/gi
+    const urls = text.match(urlPattern) || []
+
+    // 重複を削除
+    return Array.from(new Set(urls))
+  }
+
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!recipeUrl) return
-    await onAddFromUrl(e, recipeUrl, useAI)
-    setRecipeUrl('')
+    if (!urlInputText.trim()) return
+
+    const urls = extractUrls(urlInputText)
+    if (urls.length === 0) {
+      return
+    }
+
+    await onAddMultipleUrls(e, urls, useAI)
+    setUrlInputText('')
   }
 
   const handleFileSubmit = async (e: React.FormEvent) => {
@@ -126,10 +150,17 @@ export function AddRecipeDialog({
   const handleBasicSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!basicTitle.trim()) return
-    await onAddBasic(e, basicTitle, basicContent)
+    // URLがある場合は内容に追加
+    const contentWithUrl = basicUrl.trim()
+      ? `${basicContent}${basicContent ? '\n\n' : ''}${basicUrl}`
+      : basicContent
+    await onAddBasic(e, basicTitle, contentWithUrl)
     setBasicTitle('')
     setBasicContent('')
+    setBasicUrl('')
   }
+
+  const isProcessingUrls = isScraping || isBulkProcessing; // Consolidate processing states for URL input
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -138,8 +169,9 @@ export function AddRecipeDialog({
           <DialogTitle className="text-center">メモの追加</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="url" className="mt-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-3"> {/* Changed from 4 to 3 columns */}
             <TabsTrigger value="url">URLから追加</TabsTrigger>
+            {/* "まとめて追加"タブを削除 */}
             <TabsTrigger value="file">写真から追加</TabsTrigger>
             <TabsTrigger value="basic">何もなしで追加</TabsTrigger>
           </TabsList>
@@ -148,7 +180,26 @@ export function AddRecipeDialog({
               <CardContent className="pt-6">
                 <form onSubmit={handleUrlSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Input id="url-input" type="url" value={recipeUrl} onChange={(e) => setRecipeUrl(e.target.value)} placeholder="https://cookpad.com/recipe/..." required disabled={isScraping} className="text-base h-11" />
+                    <Label htmlFor="url-input">URLを入力</Label>
+                    <div className="text-sm text-gray-600 mb-2 p-3 rounded-md">
+                      <p className="mb-1">URLを1つ、または複数入力してください。</p>
+                      <p className="mb-2">改行、カンマ、スペースで区切られたURLを自動検出します。</p>
+                      <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 mt-2">
+                        X（Twitter）とInstagramはAI要約機能が使用できません。
+                      </p>
+                    </div>
+                    <Textarea
+                      id="url-input"
+                      value={urlInputText}
+                      onChange={(e) => setUrlInputText(e.target.value)}
+                      placeholder="例: https://cookpad.com/recipe/123"
+                      required
+                      disabled={isProcessingUrls}
+                      className="min-h-[120px] text-base"
+                    />
+                    <p className="text-xs text-gray-500">
+                      {urlInputText.trim() && `検出されたURL: ${extractUrls(urlInputText).length}件`}
+                    </p>
                   </div>
                   <div className="flex items-center space-x-2 py-2">
                     <Switch
@@ -160,49 +211,23 @@ export function AddRecipeDialog({
                       AI要約を使用する
                     </Label>
                   </div>
-                  {scrapeError && <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg">{scrapeError}</div>}
-                  <Button type="submit" disabled={isScraping || !recipeUrl} className="w-full h-11">{isScraping ? '解析中...' : (useAI ? '内容を解析' : 'URLを保存')}</Button>
+                  {(scrapeError || bulkError) && <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg">{scrapeError || bulkError}</div>}
+                  {isProcessingUrls && bulkProgress && ( // Show progress for multiple URLs
+                    <div className="p-3 text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg">
+                      処理中: {bulkProgress.current} / {bulkProgress.total} 件
+                    </div>
+                  )}
+                  <Button type="submit" disabled={isProcessingUrls || !urlInputText.trim() || extractUrls(urlInputText).length === 0} className="w-full h-11">
+                    {isProcessingUrls
+                      ? `処理中... (${bulkProgress?.current || 0}/${bulkProgress?.total || 0})`
+                      : (useAI ? '内容を解析' : 'URLを保存')}
+                  </Button>
                 </form>
-                <div className="mt-6 space-y-4">
-                  <h2 className="text-xs font-semibold text-gray-500 text-center">動作確認済みサイト</h2>
-                  {siteGroups.map((group) => (
-                    <div key={group.genre}>
-                      <h3 className="text-xs font-medium text-gray-500 mb-2 text-center">{group.genre}</h3>
-                      <div className="flex items-center gap-x-5 gap-y-3 flex-wrap justify-center">
-                        {group.sites.map((site) => (
-                          <a key={site.name} href={site.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors group">
-                            <img src={site.favicon} alt={`${site.name} favicon`} className="h-4 w-4 rounded-full" />
-                            <span className="text-xs font-medium group-hover:underline">{site.name}</span>
-                            {site.note && <span className="text-xs text-gray-400">{site.note}</span>}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="mt-4 space-y-4">
-                    <div className="text-xs text-gray-500 text-center">
-                      <p>※ 内容を読み取れない場合やAPIキーが未設定の場合は、</p>
-                      <p>URLのみを保存した基本メモが作成されます。</p>
-                    </div>
-                    <div className="pt-4 border-t border-gray-200">
-                      <h3 className="text-xs font-medium text-gray-500 mb-2 text-center">動作しないサイト</h3>
-                      <div className="flex items-center gap-x-5 gap-y-3 flex-wrap justify-center">
-                        <div className="flex items-center gap-2 text-gray-400 cursor-not-allowed group">
-                          <img src="https://www.google.com/s2/favicons?domain=x.com&sz=64" alt="X (Twitter) favicon" className="h-4 w-4 rounded-full opacity-50" />
-                          <span className="text-xs font-medium">X (Twitter)</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-gray-400 cursor-not-allowed group">
-                          <img src="https://www.google.com/s2/favicons?domain=instagram.com&sz=64" alt="Instagram favicon" className="h-4 w-4 rounded-full opacity-50" />
-                          <span className="text-xs font-medium">Instagram</span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-400 text-center mt-2">※ これらのサイトはログインが必要なため、内容を取得できません</p>
-                    </div>
-                  </div>
-                </div>
+                
               </CardContent>
             </Card>
           </TabsContent>
+
           <TabsContent value="file">
             <Card className="border-none shadow-none">
               <CardContent className="pt-6">
@@ -249,13 +274,24 @@ export function AddRecipeDialog({
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="basic-url">URL（任意）</Label>
+                    <Input
+                      id="basic-url"
+                      type="url"
+                      value={basicUrl}
+                      onChange={(e) => setBasicUrl(e.target.value)}
+                      placeholder="https://example.com"
+                      className="text-base h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="basic-content">内容（任意）</Label>
                     <Textarea
                       id="basic-content"
                       value={basicContent}
                       onChange={(e) => setBasicContent(e.target.value)}
                       placeholder="メモの内容を入力（マークダウン対応）"
-                      className="min-h-[200px] text-base"
+                      className="min-h-[150px] text-base"
                     />
                   </div>
                   <Button type="submit" disabled={!basicTitle.trim()} className="w-full h-11">

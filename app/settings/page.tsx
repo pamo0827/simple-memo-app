@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getUserSettings, upsertUserSettings } from '@/lib/user-settings'
 import { useRouter } from 'next/navigation'
@@ -29,17 +29,25 @@ export default function SettingsPage() {
   const [geminiApiKey, setGeminiApiKey] = useState('')
   const [aiSummaryEnabled, setAiSummaryEnabled] = useState(true)
   const [customPrompt, setCustomPrompt] = useState('')
+  const [summaryLength, setSummaryLength] = useState<'short' | 'medium' | 'long'>('medium')
   const [apiKeysSaving, setApiKeysSaving] = useState(false)
   const [apiKeysMessage, setApiKeysMessage] = useState('')
 
   const [sidebarVisible, setSidebarVisible] = useState(false)
+  const [fontFamily, setFontFamily] = useState<'system' | 'serif' | 'mono'>('system')
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium')
   const [displaySaving, setDisplaySaving] = useState(false)
   const [displayMessage, setDisplayMessage] = useState('')
 
   const [showDefaultPrompts, setShowDefaultPrompts] = useState(false)
+  const [autoSaving, setAutoSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<string>('')
 
   // 無料枠かどうかの判定（APIキーが設定されていない場合は無料枠）
   const isFreeTier = !geminiApiKey || geminiApiKey.trim() === ''
+
+  // debounce用のタイマー
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const checkUser = async () => {
@@ -62,10 +70,83 @@ export default function SettingsPage() {
       setGeminiApiKey(settings.gemini_api_key || '')
       setAiSummaryEnabled(settings.ai_summary_enabled ?? true)
       setCustomPrompt(settings.custom_prompt || '')
+      setSummaryLength(settings.summary_length || 'medium')
       setSidebarVisible(settings.sidebar_visible ?? false)
+      setFontFamily(settings.font_family || 'system')
+      setFontSize(settings.font_size || 'medium')
     }
     setLoading(false)
   }
+
+  // 自動保存関数
+  const autoSave = useCallback(async (settings: any) => {
+    if (!userId) return
+
+    setAutoSaving(true)
+    try {
+      const success = await upsertUserSettings(userId, settings)
+      if (success) {
+        const now = new Date()
+        setLastSaved(`${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}に保存`)
+      }
+    } catch (error) {
+      console.error('Auto-save error:', error)
+    } finally {
+      setAutoSaving(false)
+    }
+  }, [userId])
+
+  // debounce付き自動保存（テキスト入力用）
+  const debouncedAutoSave = useCallback((settings: any) => {
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current)
+    }
+    debounceTimer.current = setTimeout(() => {
+      autoSave(settings)
+    }, 1000)
+  }, [autoSave])
+
+  // 各設定項目の変更を監視して自動保存
+  useEffect(() => {
+    if (!userId || loading) return
+    debouncedAutoSave({ nickname })
+  }, [nickname, userId, loading, debouncedAutoSave])
+
+  useEffect(() => {
+    if (!userId || loading) return
+    autoSave({ sidebar_visible: sidebarVisible })
+  }, [sidebarVisible, userId, loading, autoSave])
+
+  useEffect(() => {
+    if (!userId || loading) return
+    autoSave({ font_family: fontFamily })
+  }, [fontFamily, userId, loading, autoSave])
+
+  useEffect(() => {
+    if (!userId || loading) return
+    autoSave({ font_size: fontSize })
+  }, [fontSize, userId, loading, autoSave])
+
+  useEffect(() => {
+    if (!userId || loading) return
+    autoSave({ summary_length: summaryLength })
+  }, [summaryLength, userId, loading, autoSave])
+
+  useEffect(() => {
+    if (!userId || loading) return
+    autoSave({ ai_summary_enabled: aiSummaryEnabled })
+  }, [aiSummaryEnabled, userId, loading, autoSave])
+
+  useEffect(() => {
+    if (!userId || loading) return
+    debouncedAutoSave({ gemini_api_key: geminiApiKey })
+  }, [geminiApiKey, userId, loading, debouncedAutoSave])
+
+  useEffect(() => {
+    if (!userId || loading) return
+    const finalCustomPrompt = isFreeTier ? null : (customPrompt.trim() || null)
+    debouncedAutoSave({ custom_prompt: finalCustomPrompt })
+  }, [customPrompt, userId, loading, isFreeTier, debouncedAutoSave])
 
   const handleUpdateNickname = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -117,6 +198,8 @@ export default function SettingsPage() {
     setDisplayMessage('')
     const success = await upsertUserSettings(userId, {
       sidebar_visible: sidebarVisible,
+      font_family: fontFamily,
+      font_size: fontSize,
     })
     if (success) {
       setDisplayMessage('表示設定を保存しました')
@@ -141,6 +224,7 @@ export default function SettingsPage() {
       gemini_api_key: geminiApiKey,
       ai_summary_enabled: aiSummaryEnabled,
       custom_prompt: finalCustomPrompt,
+      summary_length: summaryLength,
     })
     if (success) {
       setApiKeysMessage('AI設定を保存しました')
@@ -170,11 +254,18 @@ export default function SettingsPage() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           戻る
         </Button>
-        <h1 className="text-2xl font-bold mb-8">設定</h1>
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold">設定</h1>
+          {lastSaved && (
+            <p className="text-sm text-gray-500 mt-2">
+              {autoSaving ? '保存中...' : lastSaved}
+            </p>
+          )}
+        </div>
 
         <div className="space-y-12">
-          {/* Nickname Form */}
-          <form onSubmit={handleUpdateNickname} className="space-y-6 pb-8 border-b">
+          {/* Nickname Section */}
+          <div className="space-y-6 pb-8 border-b">
             <h2 className="text-lg font-semibold">プロフィール</h2>
             <div className="space-y-2">
               <Label htmlFor="nickname">ニックネーム</Label>
@@ -185,12 +276,9 @@ export default function SettingsPage() {
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="表示名"
               />
+              <p className="text-xs text-gray-500">変更は自動的に保存されます</p>
             </div>
-            {nicknameMessage && <p className="text-sm text-green-600">{nicknameMessage}</p>}
-            <Button type="submit" disabled={nicknameSaving}>
-              {nicknameSaving ? '保存中...' : 'ニックネームを保存'}
-            </Button>
-          </form>
+          </div>
 
           {/* Password Form */}
           <form onSubmit={handleUpdatePassword} className="space-y-6 pb-8 border-b">
@@ -221,8 +309,8 @@ export default function SettingsPage() {
             </Button>
           </form>
 
-          {/* Display Settings Form */}
-          <form onSubmit={handleDisplaySave} className="space-y-6 pb-8 border-b">
+          {/* Display Settings */}
+          <div className="space-y-6 pb-8 border-b">
             <h2 className="text-lg font-semibold">表示設定</h2>
             <div className="flex items-center space-x-2">
               <Switch
@@ -237,14 +325,89 @@ export default function SettingsPage() {
             <p className="text-xs text-gray-500">
               ONにすると、メモページに目次サイドバーが表示されます。OFFにすると、サイドバー機能が完全に非表示になります。
             </p>
-            {displayMessage && <p className="text-sm text-green-600">{displayMessage}</p>}
-            <Button type="submit" disabled={displaySaving}>
-              {displaySaving ? '保存中...' : '表示設定を保存'}
-            </Button>
-          </form>
 
-          {/* API Keys Form */}
-          <form onSubmit={handleApiKeysSave} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="fontFamily">フォント</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="fontFamily"
+                    value="system"
+                    checked={fontFamily === 'system'}
+                    onChange={(e) => setFontFamily(e.target.value as 'system' | 'serif' | 'mono')}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">システム</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="fontFamily"
+                    value="serif"
+                    checked={fontFamily === 'serif'}
+                    onChange={(e) => setFontFamily(e.target.value as 'system' | 'serif' | 'mono')}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm font-serif">明朝体</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="fontFamily"
+                    value="mono"
+                    checked={fontFamily === 'mono'}
+                    onChange={(e) => setFontFamily(e.target.value as 'system' | 'serif' | 'mono')}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm font-mono">等幅</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fontSize">文字サイズ</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="fontSize"
+                    value="small"
+                    checked={fontSize === 'small'}
+                    onChange={(e) => setFontSize(e.target.value as 'small' | 'medium' | 'large')}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">小</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="fontSize"
+                    value="medium"
+                    checked={fontSize === 'medium'}
+                    onChange={(e) => setFontSize(e.target.value as 'small' | 'medium' | 'large')}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-base">中</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="fontSize"
+                    value="large"
+                    checked={fontSize === 'large'}
+                    onChange={(e) => setFontSize(e.target.value as 'small' | 'medium' | 'large')}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-lg">大</span>
+                </label>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">変更は自動的に保存されます</p>
+          </div>
+
+          {/* AI Settings */}
+          <div className="space-y-6">
             <h2 className="text-lg font-semibold">AI設定</h2>
 
             {isFreeTier && (
@@ -276,6 +439,47 @@ export default function SettingsPage() {
             <p className="text-xs text-gray-500">
               OFFにすると、URLや画像を追加する際にAIによる自動要約を行わず、基本情報のみを保存します。
             </p>
+            <div className="space-y-2">
+              <Label htmlFor="summaryLength">要約の文字数</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="summaryLength"
+                    value="short"
+                    checked={summaryLength === 'short'}
+                    onChange={(e) => setSummaryLength(e.target.value as 'short' | 'medium' | 'long')}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">短い</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="summaryLength"
+                    value="medium"
+                    checked={summaryLength === 'medium'}
+                    onChange={(e) => setSummaryLength(e.target.value as 'short' | 'medium' | 'long')}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">普通</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="summaryLength"
+                    value="long"
+                    checked={summaryLength === 'long'}
+                    onChange={(e) => setSummaryLength(e.target.value as 'short' | 'medium' | 'long')}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">詳しい</span>
+                </label>
+              </div>
+              <p className="text-xs text-gray-500">
+                AI要約の文字数を調整できます。短い=簡潔、普通=バランス、詳しい=詳細な要約
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="customPrompt">カスタムプロンプト（任意）</Label>
               <Textarea
@@ -322,11 +526,8 @@ export default function SettingsPage() {
                 )}
               </div>
             </div>
-            {apiKeysMessage && <p className="text-sm text-green-600">{apiKeysMessage}</p>}
-            <Button type="submit" disabled={apiKeysSaving}>
-              {apiKeysSaving ? '保存中...' : 'AI設定を保存'}
-            </Button>
-          </form>
+            <p className="text-xs text-gray-500">変更は自動的に保存されます（テキスト入力は1秒後）</p>
+          </div>
         </div>
       </div>
     </div>

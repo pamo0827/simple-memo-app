@@ -2,34 +2,58 @@ import { GoogleGenerativeAI, ModelParams, Content } from '@google/generative-ai'
 
 const models = ['gemini-2.5-flash', 'gemini-2.5-pro'];
 
-export const systemPrompt = `あなたは、与えられたウェブページやテキストの内容を分析するアシスタントです。
+export const systemPrompt = `あなたは、ウェブページやテキストの内容を分析し、構造化された形式で情報を抽出するアシスタントです。
 
-まず、内容が「レシピ」に関するものかどうかを判断してください。
+# 重要な指示
+- 必ず以下のJSON形式で応答してください
+- JSON以外のテキストは含めないでください
+- マークダウン形式を使用して、読みやすく整理してください
 
-**内容がレシピの場合：**
-以下のJSON形式で、レシピ情報を抽出して返してください。材料と作り方のリストは、見やすいように必ずマークダウン形式にしてください。
+# 判定基準
+まず、内容が「レシピ（料理のレシピ）」に関するものかどうかを判断してください。
+
+## レシピの場合
+料理の材料と作り方が明確に記載されている場合は、以下のJSON形式で情報を抽出してください：
 
 {
   "type": "recipe",
   "data": {
     "name": "レシピ名",
-    "ingredients": "## 材料\n\n- 材料1\n- 材料2",
-    "instructions": "## 作り方\n\n1. 手順1\n2. 手順2"
+    "ingredients": "## 材料\n\n- 材料1（分量）\n- 材料2（分量）\n- ...",
+    "instructions": "## 作り方\n\n1. 手順1の説明\n2. 手順2の説明\n3. ..."
   }
 }
 
-**内容がレシピではない場合：**
-テキストの内容を要約してください。
-要約の先頭には、内容を最もよく表すタイトルを \`## \` を付けて記述してください。
-出力は以下のJSON形式で、マークダウン形式の要約を返してください。
+**注意点：**
+- 材料は箇条書き（-）で記載
+- 分量がある場合は必ず含める
+- 作り方は番号付きリスト（1. 2. 3.）で記載
+- 手順は具体的かつ簡潔に
+
+## レシピではない場合
+以下のJSON形式で、内容を要約してください：
 
 {
   "type": "summary",
-  "data": "## {生成したタイトル}\n\n- 要約の本文..."
+  "data": "## {内容を表す簡潔なタイトル}\n\n### 概要\n{2-3文で全体を要約}\n\n### 重要なポイント\n- ポイント1\n- ポイント2\n- ポイント3\n\n### 詳細\n{必要に応じて補足情報}"
 }
 
-**どちらでもない、またはエラーの場合：**
-{"type": "error", "data": "内容を処理できませんでした。"} を返してください。`
+**要約の指針：**
+1. タイトルは10文字以内で簡潔に
+2. 概要は2-3文で核心を伝える
+3. 重要なポイントは3-5個に絞る
+4. 箇条書きを活用して読みやすく
+5. 不要な情報は省略する
+6. 見出し（##, ###）を適切に使用
+
+**処理できない場合：**
+内容が不明確、または処理不可能な場合：
+{"type": "error", "data": "内容を処理できませんでした。"}
+
+# 出力形式の厳守
+- 必ずJSON形式で出力
+- マークダウンの構造を守る
+- 改行は \n で表現`
 
 async function callGenerativeAI(apiKey: string, modelParams: Omit<ModelParams, 'model'>, content: Content) {
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -66,12 +90,27 @@ function extractJson(text: string): string | null {
   return null;
 }
 
-export async function processText(text: string, apiKey: string, customPrompt?: string | null) {
+export async function processText(
+  text: string,
+  apiKey: string,
+  customPrompt?: string | null,
+  summaryLength?: 'short' | 'medium' | 'long'
+) {
   if (!text) {
     throw new Error('Input text is empty.')
   }
 
-  const prompt = customPrompt || systemPrompt;
+  let prompt = customPrompt || systemPrompt;
+
+  // 文字数設定に基づいてプロンプトを調整
+  if (!customPrompt && summaryLength) {
+    const lengthInstructions = {
+      short: '\n\n# 要約の文字数設定\n重要なポイントのみを簡潔に抽出してください。箇条書きは2-3個に絞り、各項目は1行で完結させてください。',
+      medium: '\n\n# 要約の文字数設定\n適度な詳細さでバランスよく要約してください。箇条書きは3-5個、各項目は1-2行で記述してください。',
+      long: '\n\n# 要約の文字数設定\n詳細な情報を含めて丁寧に要約してください。箇条書きは5-8個、各項目は必要に応じて複数行で詳しく記述してください。'
+    };
+    prompt += lengthInstructions[summaryLength];
+  }
 
   let resultFromAI: string | undefined;
   try {
@@ -112,36 +151,77 @@ export async function processText(text: string, apiKey: string, customPrompt?: s
   }
 }
 
-export const imageSystemPrompt = `あなたは画像から情報を抽出するアシスタントです。
-まず、画像が「レシピ」に関するものかどうかを判断してください。
+export const imageSystemPrompt = `あなたは、画像から情報を抽出し、構造化された形式で情報を提供するアシスタントです。
 
-**画像がレシピの場合：**
-以下のJSON形式で、レシピ情報を抽出して返してください。材料と作り方のリストは、見やすいように必ずマークダウン形式にしてください。
+# 重要な指示
+- 必ず以下のJSON形式で応答してください
+- JSON以外のテキストは含めないでください
+- マークダウン形式を使用して、読みやすく整理してください
+
+# 判定基準
+まず、画像が「レシピ（料理のレシピ）」に関するものかどうかを判断してください。
+
+## レシピの場合
+料理の材料と作り方が画像に含まれている場合：
+
 {
   "type": "recipe",
   "data": {
     "name": "レシピ名",
-    "ingredients": "## 材料...",
-    "instructions": "## 作り方..."
+    "ingredients": "## 材料\n\n- 材料1（分量）\n- 材料2（分量）",
+    "instructions": "## 作り方\n\n1. 手順1\n2. 手順2"
   }
 }
 
-**画像がレシピではない場合：**
-画像の内容を説明するテキストを生成し、以下のJSON形式で返してください。
+**注意点：**
+- 画像から読み取れる情報のみを記載
+- 材料は箇条書き（-）、作り方は番号付き（1. 2.）
+- 不明瞭な部分は推測せず省略
+
+## レシピではない場合
+以下のJSON形式で、画像の内容を要約してください：
+
 {
   "type": "summary",
-  "data": "## 画像の説明\n\n- この画像には..."
+  "data": "## {画像の内容を表すタイトル}\n\n### 概要\n{画像の全体的な内容}\n\n### 主な要素\n- 要素1\n- 要素2\n- 要素3\n\n### 補足\n{必要に応じて詳細情報}"
 }
 
-**どちらでもない、またはエラーの場合：**
-{"type": "error", "data": "内容を処理できませんでした。"} を返してください。`
+**要約の指針：**
+1. タイトルは画像の主題を簡潔に
+2. 概要は2-3文で画像全体を説明
+3. 主な要素は3-5個の箇条書き
+4. テキストが含まれる場合は正確に転記
 
-export async function processImage(base64Image: string, apiKey: string, caption?: string, customPrompt?: string | null) {
+**処理できない場合：**
+{"type": "error", "data": "画像を処理できませんでした。"}
+
+# 出力形式の厳守
+- 必ずJSON形式で出力
+- マークダウンの構造を守る
+- 改行は \n で表現`
+
+export async function processImage(
+  base64Image: string,
+  apiKey: string,
+  caption?: string,
+  customPrompt?: string | null,
+  summaryLength?: 'short' | 'medium' | 'long'
+) {
   if (!base64Image) {
     throw new Error('Image data is empty.')
   }
 
-  const systemInst = customPrompt || imageSystemPrompt;
+  let systemInst = customPrompt || imageSystemPrompt;
+
+  // 文字数設定に基づいてプロンプトを調整
+  if (!customPrompt && summaryLength) {
+    const lengthInstructions = {
+      short: '\n\n# 要約の文字数設定\n重要なポイントのみを簡潔に抽出してください。箇条書きは2-3個に絞り、各項目は1行で完結させてください。',
+      medium: '\n\n# 要約の文字数設定\n適度な詳細さでバランスよく要約してください。箇条書きは3-5個、各項目は1-2行で記述してください。',
+      long: '\n\n# 要約の文字数設定\n詳細な情報を含めて丁寧に要約してください。箇条書きは5-8個、各項目は必要に応じて複数行で詳しく記述してください。'
+    };
+    systemInst += lengthInstructions[summaryLength];
+  }
 
   try {
     const prompt = caption
@@ -188,36 +268,77 @@ export async function processImage(base64Image: string, apiKey: string, caption?
   }
 }
 
-export const videoSystemPrompt = `あなたは動画から情報を抽出するアシスタントです。
-まず、動画が「レシピ」に関するものかどうかを判断してください。
+export const videoSystemPrompt = `あなたは、動画コンテンツから情報を抽出し、構造化された形式で情報を提供するアシスタントです。
 
-**動画がレシピの場合：**
-以下のJSON形式で、レシピ情報を抽出して返してください。材料と作り方のリストは、見やすいように必ずマークダウン形式にしてください。
+# 重要な指示
+- 必ず以下のJSON形式で応答してください
+- JSON以外のテキストは含めないでください
+- マークダウン形式を使用して、読みやすく整理してください
+
+# 判定基準
+まず、動画が「レシピ（料理のレシピ）」に関するものかどうかを判断してください。
+
+## レシピの場合
+料理の材料と作り方が動画に含まれている場合：
+
 {
   "type": "recipe",
   "data": {
     "name": "レシピ名",
-    "ingredients": "## 材料...",
-    "instructions": "## 作り方..."
+    "ingredients": "## 材料\n\n- 材料1（分量）\n- 材料2（分量）",
+    "instructions": "## 作り方\n\n1. 手順1\n2. 手順2"
   }
 }
 
-**動画がレシピではない場合：**
-動画の内容を要約するテキストを生成し、以下のJSON形式で返してください。
+**注意点：**
+- 動画内で明示された情報のみを記載
+- 材料は箇条書き（-）、作り方は番号付き（1. 2.）
+- タイムスタンプは不要、内容のみを抽出
+
+## レシピではない場合
+以下のJSON形式で、動画の内容を要約してください：
+
 {
   "type": "summary",
-  "data": "## 動画の要約\n\n- この動画は..."
+  "data": "## {動画の内容を表すタイトル}\n\n### 概要\n{動画の主題と全体像}\n\n### 主なポイント\n- ポイント1\n- ポイント2\n- ポイント3\n\n### 詳細\n{必要に応じて補足情報}"
 }
 
-**どちらでもない、またはエラーの場合：**
-{"type": "error", "data": "内容を処理できませんでした。"} を返してください。`
+**要約の指針：**
+1. タイトルは動画の主題を簡潔に（10文字以内）
+2. 概要は2-3文で動画全体を要約
+3. 主なポイントは3-5個に絞る
+4. 時系列に沿って整理
+5. 箇条書きを活用して読みやすく
 
-export async function processVideo(videoUrl: string, apiKey: string, customPrompt?: string | null) {
+**処理できない場合：**
+{"type": "error", "data": "動画を処理できませんでした。"}
+
+# 出力形式の厳守
+- 必ずJSON形式で出力
+- マークダウンの構造を守る
+- 改行は \n で表現`
+
+export async function processVideo(
+  videoUrl: string,
+  apiKey: string,
+  customPrompt?: string | null,
+  summaryLength?: 'short' | 'medium' | 'long'
+) {
   if (!videoUrl) {
     throw new Error('Video URL is empty.')
   }
 
-  const systemInst = customPrompt || videoSystemPrompt;
+  let systemInst = customPrompt || videoSystemPrompt;
+
+  // 文字数設定に基づいてプロンプトを調整
+  if (!customPrompt && summaryLength) {
+    const lengthInstructions = {
+      short: '\n\n# 要約の文字数設定\n重要なポイントのみを簡潔に抽出してください。箇条書きは2-3個に絞り、各項目は1行で完結させてください。',
+      medium: '\n\n# 要約の文字数設定\n適度な詳細さでバランスよく要約してください。箇条書きは3-5個、各項目は1-2行で記述してください。',
+      long: '\n\n# 要約の文字数設定\n詳細な情報を含めて丁寧に要約してください。箇条書きは5-8個、各項目は必要に応じて複数行で詳しく記述してください。'
+    };
+    systemInst += lengthInstructions[summaryLength];
+  }
 
   try {
     const content: Content = [

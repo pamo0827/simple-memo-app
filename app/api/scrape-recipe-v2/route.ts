@@ -4,33 +4,29 @@ import { userContextService } from '@/lib/services/UserContextService'
 import { contentScrapingService } from '@/lib/services/ContentScrapingService'
 
 /**
- * SOLID Refactored: scrape-recipe route
- *
- * This route now follows the Single Responsibility Principle:
- * - HTTP handling only (request parsing, response formatting)
- * - Business logic delegated to service layer
- * - Authentication & authorization delegated to UserContextService
- * - Content scraping delegated to ContentScrapingService
+ * Refactored API route following SOLID principles
+ * - Single Responsibility: Only handles HTTP request/response
+ * - Dependency Inversion: Depends on service abstractions
+ * - Open/Closed: New scraping sources can be added without modifying this code
  */
-
 async function postHandler(request: NextRequest) {
   try {
-    const { url, skipAI } = await request.json()
+    const body = await request.json()
+    const { url, skipAI } = body
 
     if (!url) {
       return NextResponse.json({ error: 'URLが必要です。' }, { status: 400 })
     }
 
-    // Handle skipAI without authentication (basic memo only)
+    // Skip AI processing if requested
     if (skipAI) {
-      console.log('[Scrape] AI skipped by request - creating basic memo with URL')
       return NextResponse.json({
         type: 'summary',
         data: `# メモ\n\n${url}`
       })
     }
 
-    // Get user context (handles auth, authorization, settings)
+    // Get user context (handles authentication, authorization, and settings)
     const userContextResult = await userContextService.getUserContext(request)
     if (!userContextResult.success || !userContextResult.data) {
       return NextResponse.json(
@@ -41,7 +37,6 @@ async function postHandler(request: NextRequest) {
 
     // Scrape and process content
     const result = await contentScrapingService.scrapeUrl(url, userContextResult.data)
-
     if (!result.success) {
       return NextResponse.json(
         { error: result.error },
@@ -50,9 +45,8 @@ async function postHandler(request: NextRequest) {
     }
 
     return NextResponse.json(result.data)
-
   } catch (error) {
-    console.error('[Scrape Recipe] Error:', error)
+    console.error('[Scrape Recipe API] Unexpected error:', error)
     return NextResponse.json(
       { error: 'レシピの取得に失敗しました。' },
       { status: 500 }
@@ -61,4 +55,3 @@ async function postHandler(request: NextRequest) {
 }
 
 export const POST = withRateLimit(postHandler, 100, 15 * 60 * 1000)
-

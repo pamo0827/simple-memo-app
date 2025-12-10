@@ -1,4 +1,5 @@
 import { Innertube } from 'youtubei.js'
+import { isAllowedUrl } from './url-validation'
 
 function isYouTubeUrl(url: string): boolean {
   const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/
@@ -20,6 +21,11 @@ function getVideoId(url: string): string | null {
 }
 
 export async function getContentText(url: string): Promise<string> {
+  // SSRF対策: URLの安全性を検証
+  if (!isAllowedUrl(url)) {
+    throw new Error('Invalid or forbidden URL')
+  }
+
   if (isYouTubeUrl(url)) {
     const videoId = getVideoId(url)
     if (!videoId) {
@@ -29,7 +35,14 @@ export async function getContentText(url: string): Promise<string> {
     const info = await youtube.getBasicInfo(videoId)
     return info?.basic_info?.short_description || ''
   } else {
-    const response = await fetch(url)
+    // タイムアウトとUser-Agentを設定
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(10000), // 10秒でタイムアウト
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'MEMOTTO/1.0'
+      }
+    })
     if (!response.ok) {
       throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`)
     }

@@ -1,83 +1,106 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { processImage } from '@/lib/ai'
-import { checkAndUpdateUsage } from '@/lib/free-tier'
+import { withRateLimit } from '@/lib/rate-limit'
+import { userContextService } from '@/lib/services/UserContextService'
+import { contentScrapingService } from '@/lib/services/ContentScrapingService'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+// ファイルサイズ制限: 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+// 許可する画像形式
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-export async function POST(request: NextRequest) {
-  const formData = await request.formData()
-  const file = formData.get('file') as File | null
-  const userId = formData.get('userId') as string | null
-  const skipAI = formData.get('skipAI') === 'true'
+/**
+ * SOLID Refactored: ocr-recipe route
+ *
+ * This route now follows the Single Responsibility Principle:
+ * - HTTP handling only (request parsing, file validation, response formatting)
+ * - Business logic delegated to service layer
+ * - Authentication & authorization delegated to UserContextService
+ * - Image processing delegated to ContentScrapingService
+ */
 
-  if (!file || !userId) {
-    return NextResponse.json({ error: 'File and userId are required' }, { status: 400 })
-  }
-
-  // ファイルタイプのチェック（画像のみ対応）
-  if (!file.type.startsWith('image/')) {
-    return NextResponse.json({ error: '現在、画像ファイルのみ対応しています。' }, { status: 400 })
-  }
-
-  // リクエストでAIをスキップする指定がある場合
-  if (skipAI) {
-    console.log('[OCR] AI skipped by request - creating basic memo')
-    return NextResponse.json({
-      type: 'summary',
-      data: `# メモ\n\n画像ファイル: ${file.name}`
-    })
-  }
-
-  // 無料枠の使用制限チェック
-  const usageCheck = await checkAndUpdateUsage(userId)
-  if (!usageCheck.allowed) {
-    return NextResponse.json({
-      error: usageCheck.errorMessage
-    }, { status: 429 })
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey)
-  const { data: userSettings, error: userError } = await supabase
-    .from('user_settings')
-    .select('ai_summary_enabled, custom_prompt')
-    .eq('user_id', userId)
-    .single()
-
-  if (userError || !userSettings) {
-    return NextResponse.json({ error: 'User settings not found.' }, { status: 404 })
-  }
-
-  const apiKey = usageCheck.apiKey
-  const aiSummaryEnabled = userSettings.ai_summary_enabled ?? true
-  const customPrompt = usageCheck.isFreeTier ? null : userSettings.custom_prompt
-
-  // AI要約が無効の場合の処理
-  if (!aiSummaryEnabled) {
-    console.log('[OCR] AI summary disabled - creating basic memo')
-    return NextResponse.json({
-      type: 'summary',
-      data: `# メモ\n\n画像ファイル: ${file.name}`
-    })
-  }
-
+// OCRは負荷が高いため、レート制限を厳しく設定（15分間に20回）
+async function postHandler(request: NextRequest) {
   try {
+    const formData = await request.formData()
+    const file = formData.get('file') as File | null
+    const skipAI = formData.get('skipAI') === 'true'
+
+    if (!file) {
+      return NextResponse.json({ error: 'ファイルが必要です。' }, { status: 400 })
+    }
+
+    // セキュリティ: ファイルサイズ制限
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `ファイルサイズが大きすぎます。最大${MAX_FILE_SIZE / 1024 / 1024}MBまでです。` },
+        { status: 400 }
+      )
+    }
+
+    // セキュリティ: ファイルタイプの厳格な検証
+    if (!file.type.startsWith('image/')) {
+      return NextResponse.json({ error: '画像ファイルのみ対応しています。' }, { status: 400 })
+    }
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      return NextResponse.json(
+        { error: '対応していない画像形式です。JPEG、PNG、GIF、WebPのみ対応しています。' },
+        { status: 400 }
+      )
+    }
+
+    // セキュリティ: ファイル名の検証（パストラバーサル対策）
+    const filename = file.name
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return NextResponse.json({ error: '不正なファイル名です。' }, { status: 400 })
+    }
+
+    // Handle skipAI without authentication (basic memo only)
+    if (skipAI) {
+      console.log('[OCR] AI skipped by request - creating basic memo')
+      return NextResponse.json({
+        type: 'summary',
+        data: `# メモ\n\n画像ファイル: ${file.name}`
+      })
+    }
+
+    // Get user context (handles auth, authorization, settings)
+    const userContextResult = await userContextService.getUserContext(request)
+    if (!userContextResult.success || !userContextResult.data) {
+      return NextResponse.json(
+        { error: userContextResult.error },
+        { status: userContextResult.statusCode || 500 }
+      )
+    }
+
     // 画像ファイルをBase64エンコード
-    // Gemini Vision APIは画像をBase64形式で受け取る
     const fileBuffer = Buffer.from(await file.arrayBuffer())
     const base64Image = fileBuffer.toString('base64')
 
-    // 画像から情報を抽出
-    // Gemini Vision APIを使用して、画像内のテキスト、URL、レシピ情報などを抽出
-    const result = await processImage(base64Image, apiKey, undefined, customPrompt)
+    // Process image file
+    const result = await contentScrapingService.processImageFile(
+      base64Image,
+      userContextResult.data,
+      file.name
+    )
 
-    // 抽出結果をフロントエンドに返す
-    return NextResponse.json(result)
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.statusCode || 500 }
+      )
+    }
+
+    return NextResponse.json(result.data)
 
   } catch (error) {
-    console.error('OCR Error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred'
-    return NextResponse.json({ error: `Failed to process file: ${errorMessage}` }, { status: 500 })
+    console.error('[OCR Recipe] Error:', error)
+    return NextResponse.json(
+      { error: '画像の処理に失敗しました。' },
+      { status: 500 }
+    )
   }
 }
+
+export const POST = withRateLimit(postHandler, 20, 15 * 60 * 1000)
+

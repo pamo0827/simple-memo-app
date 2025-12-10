@@ -7,7 +7,7 @@ import { getRecipes, createRecipe, deleteRecipe, updateRecipe, updateRecipeOrder
 import { getCategories, createCategory as dbCreateCategory, updateCategory as dbUpdateCategory, deleteCategory as dbDeleteCategory } from '@/lib/categories'
 import { upsertUserSettings, getUserSettings } from '@/lib/user-settings'
 import type { Recipe, Category } from '@/lib/supabase'
-import { LogOut, Trash2, Settings, Search, Upload, Plus, GripVertical, CheckSquare, Square, X, Menu, ChevronLeft, ChevronRight, HelpCircle, Share2 } from 'lucide-react'
+import { LogOut, Trash2, Settings, Search, Upload, Plus, GripVertical, CheckSquare, Square, X, Menu, ChevronLeft, ChevronRight, HelpCircle, Share2, Mail } from 'lucide-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -32,6 +32,7 @@ import { AddRecipeDialog } from '@/components/recipes/AddRecipeDialog'
 import { Sidebar } from '@/components/recipes/Sidebar'
 import { ShareAllDialog } from '@/components/recipes/ShareAllDialog' // この行は後でShareAllDialogにリネームします
 import { RecipeItem, ListItem } from '@/types'
+import { useRecipeScrap } from '@/hooks/useRecipeScrap'
 
 const getFaviconUrl = (url: string) => {
   try {
@@ -42,6 +43,30 @@ const getFaviconUrl = (url: string) => {
   }
 }
 
+/**
+ * Helper function to extract title from markdown content
+ * Follows Single Responsibility Principle
+ */
+const extractTitleFromMarkdown = (content: string, fallback: string = 'メモ'): string => {
+  const lines = content.split('\n').filter((line: string) => line.trim())
+
+  // 1. マークダウン見出しを探す
+  const headingLine = lines.find((line: string) => line.match(/^#{1,3}\s+(.+)/))
+  if (headingLine) {
+    return headingLine.replace(/^#{1,3}\s+/, '').trim()
+  }
+
+  // 2. 見出しがない場合、最初の実質的なテキスト行を使用
+  const contentLine = lines.find((line: string) => !line.match(/^[#\-*•]/) && line.length > 3)
+  if (contentLine) {
+    let title = contentLine.substring(0, 50).trim()
+    if (contentLine.length > 50) title += '...'
+    return title
+  }
+
+  return fallback
+}
+
 export default function HomePage() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [categories, setCategories] = useState<CategoryHeader[]>([])
@@ -50,11 +75,7 @@ export default function HomePage() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
-  const [isScraping, setIsScraping] = useState(false)
-  const [scrapeError, setScrapeError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadError, setUploadError] = useState('')
   const [uploadSuccess, setUploadSuccess] = useState('')
   const [isAddDialogOpen, setAddDialogOpen] = useState(false)
   const [isSearchVisible, setSearchVisible] = useState(false)
@@ -64,8 +85,13 @@ export default function HomePage() {
   const [nickname, setNickname] = useState<string | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [sidebarEnabled, setSidebarEnabled] = useState(false)
-  const [isShareDialogOpen, setShareDialogOpen] = useState(false) // このstateは残します
+  const [fontFamily, setFontFamily] = useState<'system' | 'serif' | 'mono'>('system')
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium')
+  const [isShareDialogOpen, setShareDialogOpen] = useState(false)
   const router = useRouter()
+
+  // SOLID Refactored: Use custom hook for recipe scraping business logic
+  const { isScraping, scrapeError, bulkProgress, scrapeUrl, scrapeMultipleUrls, scrapeYouTube, uploadFile } = useRecipeScrap()
 
   // カテゴリーへのrefを保持
   const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -112,7 +138,7 @@ export default function HomePage() {
 
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('nickname, list_order, gemini_api_key, sidebar_visible')
+      .select('nickname, list_order, gemini_api_key, sidebar_visible, font_family, font_size')
       .eq('user_id', user.id)
       .single()
 
@@ -124,6 +150,10 @@ export default function HomePage() {
       const sidebarSetting = settings.sidebar_visible ?? false
       setSidebarEnabled(sidebarSetting)
       setIsSidebarOpen(sidebarSetting)
+
+      // フォント設定
+      setFontFamily(settings.font_family || 'system')
+      setFontSize(settings.font_size || 'medium')
     }
 
     loadInitialData(user.id)
@@ -240,139 +270,26 @@ export default function HomePage() {
     setIsSelectionMode(false)
   }
 
-  const handleAddFromUrl = async (e: React.FormEvent, url: string, useAI: boolean = true) => {
-    e.preventDefault()
-    if (!url || !userId) return
-    setIsScraping(true)
-    setScrapeError('')
-    try {
-      // URLの種類を判定
-      const isYouTube = url.includes('youtube.com') || url.includes('youtu.be')
-
-      let apiEndpoint = '/api/scrape-recipe'
-      if (isYouTube) {
-        apiEndpoint = '/api/scrape-youtube'
-      }
-
-      const response = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url, userId, skipAI: !useAI }),
-      })
-      if (!response.ok) {
-        const errorData = await response.json()
-        setScrapeError(errorData.error || 'レシピの取得に失敗しました')
-        return
-      }
-      const result = await response.json()
-
-      if (result.type === 'recipe') {
-        const recipeData = result.data
-        const ingredients = (recipeData.ingredients || '').replace(/\\n/g, '\n')
-        const instructions = (recipeData.instructions || '').replace(/\\n/g, '\n')
-        const recipe = await createRecipe(userId, {
-          name: recipeData.name || '名称未設定のレシピ',
-          ingredients: ingredients,
-          instructions: instructions,
-          source_url: url,
-        })
-        if (recipe) {
-          setRecipes([recipe, ...recipes])
-        }
-      } else if (result.type === 'summary') {
-        const summaryData = (result.data || '').replace(/\\n/g, '\n')
-        console.log('[Summary] Creating memo from URL:', url)
-        console.log('[Summary] Summary data:', summaryData)
-
-        // タイトルを抽出（より適切な方法で）
-        let name = ''
-        const lines = summaryData.split('\n').filter((line: string) => line.trim())
-
-        // 1. マークダウン見出しを探す
-        const headingLine = lines.find((line: string) => line.match(/^#{1,3}\s+(.+)/))
-        if (headingLine) {
-          name = headingLine.replace(/^#{1,3}\s+/, '').trim()
-        }
-
-        // 2. 見出しがない場合、最初の実質的なテキスト行を使用
-        if (!name) {
-          const contentLine = lines.find((line: string) => !line.match(/^[#\-*•]/) && line.length > 3)
-          if (contentLine) {
-            name = contentLine.substring(0, 50).trim()
-            if (contentLine.length > 50) name += '...'
-          }
-        }
-
-        // 3. それでもない場合、URLからサイト名を抽出
-        if (!name && url) {
-          try {
-            const urlObj = new URL(url)
-            const hostname = urlObj.hostname.replace('www.', '')
-            name = `${hostname} のメモ`
-          } catch {
-            name = 'メモ'
-          }
-        }
-
-        // 4. 最後の手段
-        if (!name) {
-          name = 'メモ'
-        }
-
-        console.log('[Summary] Creating recipe with:', { name, source_url: url })
-        const recipe = await createRecipe(userId, {
-          name: name,
-          ingredients: '', // サマリーの場合は材料なし
-          instructions: summaryData,
-          source_url: url,
-        })
-        console.log('[Summary] Created recipe:', recipe)
-        if (recipe) {
-          setRecipes([recipe, ...recipes])
-        }
-      } else {
-        setScrapeError(result.data || '解析できませんでした。')
-        return
-      }
-
-      setAddDialogOpen(false)
-    } catch (error) {
-      console.error('Scrape error:', error)
-      setScrapeError('レシピの取得に失敗しました')
-    } finally {
-      setIsScraping(false)
-    }
-  }
-
-
-
+  /**
+   * SOLID Refactored: Simplified handler using useRecipeScrap hook
+   * Business logic delegated to custom hook
+   */
   const handleAddFromFile = async (e: React.FormEvent, file: File, useAI: boolean = true) => {
     e.preventDefault()
     if (!file || !userId) return
 
-    setIsUploading(true)
-    setUploadError('')
     setUploadSuccess('')
 
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('userId', userId)
-    formData.append('skipAI', (!useAI).toString())
+    // Use custom hook for API call and state management
+    const result = await uploadFile(file, useAI)
+
+    if (!result) {
+      // Error is already handled by the hook (scrapeError state)
+      return
+    }
 
     try {
-      const response = await fetch('/api/ocr-recipe', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        setUploadError(errorData.error || 'レシピの解析に失敗しました')
-        return
-      }
-
-      const result = await response.json()
-
+      // Handle recipe creation based on result type
       if (result.type === 'recipe') {
         const recipeData = result.data
         const ingredients = (recipeData.ingredients || '').replace(/\\n/g, '\n')
@@ -388,66 +305,27 @@ export default function HomePage() {
           setUploadSuccess('1件のメモを追加しました。')
         }
       } else if (result.type === 'summary') {
-        if (typeof result.data === 'object' && result.data.message) {
-          setUploadSuccess(result.data.message)
-          if (userId) await loadInitialData(userId)
-        } else if (typeof result.data === 'string') {
-          const summaryData = (result.data || '').replace(/\\n/g, '\n')
+        const summaryData = (result.data || '').replace(/\\n/g, '\n')
 
-          // タイトルを抽出（URL版と同じロジック）
-          let name = ''
-          const lines = summaryData.split('\n').filter((line: string) => line.trim())
+        // Extract title using helper function
+        const fileName = file.name.replace(/\.[^/.]+$/, '')
+        const name = extractTitleFromMarkdown(summaryData, `${fileName} のメモ`)
 
-          // 1. マークダウン見出しを探す
-          const headingLine = lines.find((line: string) => line.match(/^#{1,3}\s+(.+)/))
-          if (headingLine) {
-            name = headingLine.replace(/^#{1,3}\s+/, '').trim()
-          }
-
-          // 2. 見出しがない場合、最初の実質的なテキスト行を使用
-          if (!name) {
-            const contentLine = lines.find((line: string) => !line.match(/^[#\-*•]/) && line.length > 3)
-            if (contentLine) {
-              name = contentLine.substring(0, 50).trim()
-              if (contentLine.length > 50) name += '...'
-            }
-          }
-
-          // 3. ファイル名から抽出
-          if (!name && file.name) {
-            const fileName = file.name.replace(/\.[^/.]+$/, '') // 拡張子を削除
-            name = `${fileName} のメモ`
-          }
-
-          // 4. 最後の手段
-          if (!name) {
-            name = 'メモ'
-          }
-
-          const recipe = await createRecipe(userId, {
-            name: name,
-            ingredients: '',
-            instructions: summaryData,
-            source_url: `file://${file.name}`,
-          })
-          if (recipe) {
-            setRecipes([recipe, ...recipes])
-            setUploadSuccess('1件のメモを追加しました。')
-          }
-        } else {
-          throw new Error('Invalid summary data format.')
+        const recipe = await createRecipe(userId, {
+          name: name,
+          ingredients: '',
+          instructions: summaryData,
+          source_url: `file://${file.name}`,
+        })
+        if (recipe) {
+          setRecipes([recipe, ...recipes])
+          setUploadSuccess('1件のメモを追加しました。')
         }
-      } else {
-        throw new Error(result.data || 'Invalid response type from server.')
       }
 
       setAddDialogOpen(false)
-
     } catch (error) {
-      console.error('Upload error:', error)
-      setUploadError('レシピの解析中にエラーが発生しました。')
-    } finally {
-      setIsUploading(false)
+      console.error('Recipe creation error:', error)
     }
   }
 
@@ -468,6 +346,83 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error('Basic memo creation error:', error)
+    }
+  }
+
+  /**
+   * SOLID Refactored: Simplified handler using useRecipeScrap hook
+   * Business logic delegated to custom hook
+   */
+  const handleAddMultipleUrls = async (e: React.FormEvent, urls: string[], useAI: boolean = true) => {
+    e.preventDefault()
+    if (urls.length === 0 || !userId) return
+
+    // Use custom hook for bulk URL scraping
+    const results = await scrapeMultipleUrls(urls, useAI)
+
+    const newRecipes: Recipe[] = []
+    let successCount = 0
+
+    // Process each result and create recipes
+    for (const { url, data } of results) {
+      if (!data) continue
+
+      try {
+        if (data.type === 'recipe') {
+          const recipeData = data.data
+          const ingredients = (recipeData.ingredients || '').replace(/\\n/g, '\n')
+          const instructions = (recipeData.instructions || '').replace(/\\n/g, '\n')
+          const recipe = await createRecipe(userId, {
+            name: recipeData.name || '名称未設定のレシピ',
+            ingredients: ingredients,
+            instructions: instructions,
+            source_url: url,
+          })
+          if (recipe) {
+            newRecipes.push(recipe)
+            successCount++
+          }
+        } else if (data.type === 'summary') {
+          const summaryData = (data.data || '').replace(/\\n/g, '\n')
+
+          // Extract title using helper function
+          let fallback = 'メモ'
+          if (url) {
+            try {
+              const urlObj = new URL(url)
+              const hostname = urlObj.hostname.replace('www.', '')
+              fallback = `${hostname} のメモ`
+            } catch {
+              fallback = 'メモ'
+            }
+          }
+
+          const name = extractTitleFromMarkdown(summaryData, fallback)
+
+          const recipe = await createRecipe(userId, {
+            name: name,
+            ingredients: '',
+            instructions: summaryData,
+            source_url: url,
+          })
+          if (recipe) {
+            newRecipes.push(recipe)
+            successCount++
+          }
+        }
+      } catch (error) {
+        console.error(`Error creating recipe for URL ${url}:`, error)
+      }
+    }
+
+    // 成功したレシピを一括で追加
+    if (newRecipes.length > 0) {
+      setRecipes([...newRecipes, ...recipes])
+    }
+
+    const errorCount = urls.length - successCount
+    if (errorCount === 0) {
+      setAddDialogOpen(false)
     }
   }
 
@@ -517,7 +472,7 @@ export default function HomePage() {
       )}
 
       {/* メインコンテンツ */}
-      <div className="flex-1 overflow-x-hidden">
+      <div className={`flex-1 overflow-x-hidden font-family-${fontFamily} font-size-${fontSize}`}>
         <div className="max-w-4xl mx-auto px-4 py-8">
           <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100">
             <div className="flex items-center gap-2">
@@ -539,6 +494,7 @@ export default function HomePage() {
                 <>
                   <Button variant="ghost" size="icon" onClick={() => setSearchVisible(!isSearchVisible)} title="検索" className="hover:bg-gray-50"><Search className="h-5 w-5" /></Button>
                   <Button variant="ghost" size="icon" onClick={toggleSelectionMode} title="削除" className="hover:bg-gray-50"><Trash2 className="h-5 w-5" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => router.push('/contact')} title="お問い合わせ" className="hover:bg-gray-50"><Mail className="h-5 w-5" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => router.push('/help')} title="ヘルプ" className="hover:bg-gray-50"><HelpCircle className="h-5 w-5" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => setShareDialogOpen(true)} title="共有" className="hover:bg-gray-50"><Share2 className="h-5 w-5" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => router.push('/settings')} title="設定" className="hover:bg-gray-50"><Settings className="h-5 w-5" /></Button>
@@ -715,14 +671,17 @@ export default function HomePage() {
       <AddRecipeDialog
         open={isAddDialogOpen}
         onOpenChange={setAddDialogOpen}
-        onAddFromUrl={handleAddFromUrl}
         onAddFromFile={handleAddFromFile}
         onAddBasic={handleAddBasic}
+        onAddMultipleUrls={handleAddMultipleUrls}
         isScraping={isScraping}
         scrapeError={scrapeError}
-        isUploading={isUploading}
-        uploadError={uploadError}
+        isUploading={isScraping}
+        uploadError={scrapeError}
         uploadSuccess={uploadSuccess}
+        isBulkProcessing={isScraping && !!bulkProgress}
+        bulkProgress={bulkProgress || undefined}
+        bulkError={scrapeError}
       />
       <ShareAllDialog
         open={isShareDialogOpen}
