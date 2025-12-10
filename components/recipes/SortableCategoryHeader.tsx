@@ -73,7 +73,7 @@ export function SortableCategoryHeader({ category, onEdit, categoryRef, isSelect
           />
         ) : (
           <h2
-            className="fluid-text-sm font-bold text-amber-900 cursor-pointer hover:text-amber-700"
+            className="text-base font-bold text-amber-900 cursor-pointer hover:text-amber-700"
             onClick={() => setIsEditing(true)}
           >
             {category.name}

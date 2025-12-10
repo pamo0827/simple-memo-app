@@ -106,6 +106,7 @@ export function AddRecipeDialog({
   const [useAI, setUseAI] = useState(true)
   const [basicTitle, setBasicTitle] = useState('')
   const [basicContent, setBasicContent] = useState('')
+  const [basicUrl, setBasicUrl] = useState('')
   // bulkUrlsText state removed as it's integrated
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -149,9 +150,14 @@ export function AddRecipeDialog({
   const handleBasicSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!basicTitle.trim()) return
-    await onAddBasic(e, basicTitle, basicContent)
+    // URLがある場合は内容に追加
+    const contentWithUrl = basicUrl.trim()
+      ? `${basicContent}${basicContent ? '\n\n' : ''}${basicUrl}`
+      : basicContent
+    await onAddBasic(e, basicTitle, contentWithUrl)
     setBasicTitle('')
     setBasicContent('')
+    setBasicUrl('')
   }
 
   const isProcessingUrls = isScraping || isBulkProcessing; // Consolidate processing states for URL input
@@ -175,30 +181,21 @@ export function AddRecipeDialog({
                 <form onSubmit={handleUrlSubmit} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="url-input">URLを入力</Label>
-                    <Textarea // Changed from Input to Textarea
+                    <div className="text-sm text-gray-600 mb-2 p-3 rounded-md">
+                      <p className="mb-1">URLを1つ、または複数入力してください。</p>
+                      <p className="mb-2">改行、カンマ、スペースで区切られたURLを自動検出します。</p>
+                      <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 mt-2">
+                        X（Twitter）とInstagramはAI要約機能が使用できません。
+                      </p>
+                    </div>
+                    <Textarea
                       id="url-input"
                       value={urlInputText}
                       onChange={(e) => setUrlInputText(e.target.value)}
-                      placeholder="URLを1つ、または複数入力してください。
-改行、カンマ、スペースで区切られたURLを自動検出します。
-文章中のURLも抽出可能です。
-
-例1（単一URL）：
-https://cookpad.com/recipe/123
-
-例2（複数URL - 改行区切り）：
-https://cookpad.com/recipe/123
-https://youtube.com/watch?v=abc
-
-例3（複数URL - CSV形式）：
-https://example.com/1, https://example.com/2
-
-例4（文章中のURL）：
-このレシピが良さそう https://cookpad.com/recipe/123
-参考動画はこちら https://youtube.com/watch?v=abc"
+                      placeholder="例: https://cookpad.com/recipe/123"
                       required
                       disabled={isProcessingUrls}
-                      className="min-h-[180px] text-base font-mono text-sm"
+                      className="min-h-[120px] text-base"
                     />
                     <p className="text-xs text-gray-500">
                       {urlInputText.trim() && `検出されたURL: ${extractUrls(urlInputText).length}件`}
@@ -226,20 +223,7 @@ https://example.com/1, https://example.com/2
                       : (useAI ? '内容を解析' : 'URLを保存')}
                   </Button>
                 </form>
-                    <div className="pt-4 border-t border-gray-200">
-                      <h3 className="text-xs font-medium text-gray-500 mb-2 text-center">AI要約がが動作しないサイト</h3>
-                      <div className="flex items-center gap-x-5 gap-y-3 flex-wrap justify-center">
-                        <div className="flex items-center gap-2 text-gray-400 cursor-not-allowed group">
-                          <img src="https://www.google.com/s2/favicons?domain=x.com&sz=64" alt="X (Twitter) favicon" className="h-4 w-4 rounded-full opacity-50" />
-                          <span className="text-xs font-medium">X (Twitter)</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-gray-400 cursor-not-allowed group">
-                          <img src="https://www.google.com/s2/favicons?domain=instagram.com&sz=64" alt="Instagram favicon" className="h-4 w-4 rounded-full opacity-50" />
-                          <span className="text-xs font-medium">Instagram</span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-400 text-center mt-2">※ これらのサイトはログインが必要なため、AIで内容を要約できません。リンク先と基本メモが追加されます。</p>
-                    </div>
+                
               </CardContent>
             </Card>
           </TabsContent>
@@ -290,13 +274,24 @@ https://example.com/1, https://example.com/2
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="basic-url">URL（任意）</Label>
+                    <Input
+                      id="basic-url"
+                      type="url"
+                      value={basicUrl}
+                      onChange={(e) => setBasicUrl(e.target.value)}
+                      placeholder="https://example.com"
+                      className="text-base h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="basic-content">内容（任意）</Label>
                     <Textarea
                       id="basic-content"
                       value={basicContent}
                       onChange={(e) => setBasicContent(e.target.value)}
                       placeholder="メモの内容を入力（マークダウン対応）"
-                      className="min-h-[200px] text-base"
+                      className="min-h-[150px] text-base"
                     />
                   </div>
                   <Button type="submit" disabled={!basicTitle.trim()} className="w-full h-11">

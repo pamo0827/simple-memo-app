@@ -26,6 +26,12 @@ export async function upsertUserSettings(
     nickname?: string | null
     gemini_api_key?: string | null
     list_order?: string[] | null
+    summary_length?: 'short' | 'medium' | 'long' | null
+    ai_summary_enabled?: boolean | null
+    custom_prompt?: string | null
+    sidebar_visible?: boolean | null
+    font_family?: 'system' | 'serif' | 'mono' | null
+    font_size?: 'small' | 'medium' | 'large' | null
   }
 ): Promise<boolean> {
   console.log('Upserting settings for user:', userId, 'with settings:', settings)
