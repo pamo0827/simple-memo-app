@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Fingerprint } from 'lucide-react'
+import { isPasskeyAvailable, authenticateWithPasskey, registerPasskey } from '@/lib/passkey'
 
 function LoginComponent() {
   const [email, setEmail] = useState('')
@@ -17,6 +18,9 @@ function LoginComponent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false)
+  const [showPasskeyRegister, setShowPasskeyRegister] = useState(false)
+  const [justLoggedIn, setJustLoggedIn] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -25,7 +29,73 @@ function LoginComponent() {
       setEmail('test@mail.com')
       setPassword('weqho8-vIkkew-sojbas')
     }
+
+    // パスキーが利用可能かチェック
+    setPasskeyAvailable(isPasskeyAvailable())
   }, [searchParams])
+
+  // パスキーで自動ログイン
+  const handlePasskeyLogin = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const result = await authenticateWithPasskey()
+
+      if (!result.success) {
+        setError(result.error || 'パスキー認証に失敗しました')
+        setLoading(false)
+        return
+      }
+
+      // Supabaseでユーザー情報を取得してセッションを作成
+      // 注: Supabaseはパスキー認証を直接サポートしていないため、
+      // 一時的なトークンやカスタムエンドポイントが必要です
+      // ここでは簡易的にuser_idを使ってログイン状態を管理します
+
+      // セキュアな実装のためには、サーバー側でトークンを発行する必要があります
+      setError('パスキー認証は現在開発中です。通常のログインをご利用ください。')
+      setLoading(false)
+    } catch (err) {
+      console.error('パスキーログインエラー:', err)
+      setError('パスキーログインに失敗しました')
+      setLoading(false)
+    }
+  }
+
+  // パスキーを登録
+  const handleRegisterPasskey = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        setError('ログインしてください')
+        setLoading(false)
+        return
+      }
+
+      const result = await registerPasskey(
+        { email: user.email!, userId: user.id },
+        'このデバイス'
+      )
+
+      if (!result.success) {
+        setError(result.error || 'パスキー登録に失敗しました')
+        setLoading(false)
+        return
+      }
+
+      setShowPasskeyRegister(false)
+      router.push('/')
+    } catch (err) {
+      console.error('パスキー登録エラー:', err)
+      setError('パスキー登録に失敗しました')
+      setLoading(false)
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,6 +115,23 @@ function LoginComponent() {
         setError(error.message)
       } else {
         console.log('ログイン成功、リダイレクト中')
+        setJustLoggedIn(true)
+
+        // パスキーが利用可能で、まだ登録していない場合、登録を促す
+        if (passkeyAvailable && data.user) {
+          const { data: passkeys } = await supabase
+            .from('passkeys')
+            .select('id')
+            .eq('user_id', data.user.id)
+            .limit(1)
+
+          if (!passkeys || passkeys.length === 0) {
+            setShowPasskeyRegister(true)
+            setLoading(false)
+            return
+          }
+        }
+
         router.push('/')
       }
     } catch (err) {
@@ -92,6 +179,15 @@ function LoginComponent() {
         }
 
         console.log('登録成功、リダイレクト中')
+        setJustLoggedIn(true)
+
+        // パスキーが利用可能な場合、登録を促す
+        if (passkeyAvailable && data.user) {
+          setShowPasskeyRegister(true)
+          setLoading(false)
+          return
+        }
+
         router.push('/')
       }
     } catch (err) {
@@ -100,6 +196,62 @@ function LoginComponent() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // パスキー登録ダイアログ
+  if (showPasskeyRegister) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
+        <div className="max-w-md w-full">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-center flex items-center justify-center gap-2">
+                <Fingerprint className="h-6 w-6" />
+                パスキーを登録
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="text-center space-y-3">
+                <p className="text-gray-700">
+                  パスキーを登録すると、次回から生体認証や画面ロックで簡単にログインできます。
+                </p>
+                <p className="text-sm text-gray-500">
+                  顔認証、指紋認証、またはPINコードでログインできるようになります。
+                </p>
+              </div>
+
+              {error && (
+                <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <Button
+                  onClick={handleRegisterPasskey}
+                  disabled={loading}
+                  className="w-full"
+                  size="lg"
+                >
+                  <Fingerprint className="h-5 w-5 mr-2" />
+                  {loading ? '登録中...' : 'パスキーを登録'}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => router.push('/')}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  スキップ
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -114,6 +266,31 @@ function LoginComponent() {
             <CardTitle className="text-center">{isSignupMode ? '新規登録' : 'ログイン'}</CardTitle>
           </CardHeader>
           <CardContent>
+            {/* パスキーログインボタン（ログインモード時のみ） */}
+            {!isSignupMode && passkeyAvailable && (
+              <div className="mb-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePasskeyLogin}
+                  disabled={loading}
+                  className="w-full border-2 border-amber-500 text-amber-700 hover:bg-amber-50"
+                  size="lg"
+                >
+                  <Fingerprint className="h-5 w-5 mr-2" />
+                  パスキーでログイン
+                </Button>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">または</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <form className="space-y-6" onSubmit={isSignupMode ? handleSignup : handleLogin}>
               <div className="space-y-4">
                 {isSignupMode && (
