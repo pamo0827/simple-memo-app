@@ -41,6 +41,29 @@ function LoginComponent() {
 
     // パスキーが利用可能かチェック
     setPasskeyAvailable(isPasskeyAvailable())
+
+    // URLハッシュからエラーをチェック (OAuthリダイレクトエラー用)
+    const handleHashError = () => {
+      if (typeof window === 'undefined') return
+      
+      const hash = window.location.hash
+      if (!hash) return
+
+      const params = new URLSearchParams(hash.substring(1))
+      const errorDescription = params.get('error_description')
+      const error = params.get('error')
+
+      if (errorDescription === 'Error getting user email from external provider') {
+        setError('Twitterアカウントからメールアドレスを取得できませんでした。Twitterの設定でメールアドレスが登録・確認されているかご確認ください。')
+        // URLをきれいにする
+        window.history.replaceState(null, '', window.location.pathname)
+      } else if (error || errorDescription) {
+        setError(decodeURIComponent(errorDescription || '認証エラーが発生しました'))
+        window.history.replaceState(null, '', window.location.pathname)
+      }
+    }
+
+    handleHashError()
   }, [searchParams])
 
   // Twitter OAuth認証

@@ -59,10 +59,10 @@ export async function updateRecipe(id: string, updates: Partial<RecipeInput>): P
     .update(updates)
     .eq('id', id)
     .select()
-    .single()
+    .maybeSingle()
 
   if (error) {
-    console.error('レシピ更新エラー:', error)
+    console.error('レシピ更新エラー:', JSON.stringify(error, null, 2))
     return null
   }
 

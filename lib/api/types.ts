@@ -6,9 +6,16 @@ export interface ApiResponse<T> {
   error?: string
 }
 
+export interface ScrapedRecipe {
+  name: string
+  ingredients?: string
+  instructions: string
+  url?: string
+}
+
 export interface RecipeData {
   type: 'recipe' | 'summary' | 'error'
-  data: any
+  data: ScrapedRecipe | { title?: string, content: string } | string | any
 }
 
 export interface ScrapeUrlRequest {

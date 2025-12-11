@@ -61,52 +61,6 @@ export default function HelpPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <Link className="h-4 w-4" />
-                  URLから追加
-                </h3>
-                <p className="text-gray-700 text-sm mb-2">
-                  右下の「＋」ボタンをクリックし、「URLから追加」タブでURLを貼り付けます。AIが自動で内容を解析してまとめます。
-                </p>
-                <div className="bg-gray-50 rounded-lg p-3 text-sm">
-                  <p className="font-medium text-gray-900 mb-1">対応サイト：</p>
-                  <ul className="list-disc list-inside text-gray-700 space-y-1">
-                    <li><strong>YouTube</strong> - 字幕・概要欄から内容を抽出</li>
-                    <li><strong>レシピサイト</strong> - Cookpad、クラシル、DELISH KITCHEN、白ごはん.com など</li>
-                    <li><strong>勉強系サイト</strong> - マナピタイムズ、パスナビ、STUDY HACKER など</li>
-                    <li><strong>ゲーム攻略サイト</strong> - GameWith、Game8、神ゲー攻略 など</li>
-                    <li><strong>技術記事サイト</strong> - Qiita、Zenn、note など</li>
-                    <li><strong>その他</strong> - ほとんどのウェブページに対応</li>
-                  </ul>
-                  <p className="mt-3 text-gray-600">
-                    ※ X（旧Twitter）やInstagramは技術的な制約により、AI要約はできません。
-                    URLと基本情報として保存されます。
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">AI抽出機能</h3>
-                <p className="text-gray-700 text-sm mb-2">
-                  保存済みのメモでも、後からAIで内容を抽出できます。
-                </p>
-                <ol className="list-decimal list-inside text-gray-700 text-sm space-y-1">
-                  <li>メモを開いてURLの右側にある✨（Sparkles）アイコンをクリック</li>
-                  <li>AIが自動でURLの内容を解析して、タイトルと内容を抽出</li>
-                  <li>一度抽出した後は、🔄（リロード）アイコンで再抽出可能</li>
-                </ol>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  何もなしで追加
-                </h3>
-                <p className="text-gray-700 text-sm">
-                  URLや画像なしで、手軽にメモを作成できます。マークダウン形式で書くことができます。
-                </p>
-              </div>
             </CardContent>
           </Card>
 
