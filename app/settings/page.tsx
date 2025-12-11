@@ -843,7 +843,7 @@ export default function SettingsPage() {
                   className="min-h-[150px] text-sm"
                 />
                 <p className="text-xs text-gray-500">
-                  例: 「レシピの場合は材料を箇条書きで、作り方を番号付きリストで抽出してください」
+                  例: 「レシピの場合は材料を箇条書きで、作り方を番号付きリストで抽出してください」「要約は常に「結論」「理由」「具体例」の構成にしてください」
                 </p>
                 <div className="mt-4">
                   <button

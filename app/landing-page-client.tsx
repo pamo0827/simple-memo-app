@@ -376,8 +376,19 @@ export default function LandingPageClient({
       </main>
 
       {/* Footer */}
-      <footer className="py-4">
-        <div className="mx-auto max-w-xl px-6 text-center text-sm text-gray-500">
+      <footer className="py-8 bg-orange-50 border-t border-orange-100">
+        <div className="mx-auto max-w-xl px-6 flex flex-col items-center gap-4 text-sm text-gray-500">
+          <div className="flex gap-6">
+            <Link href="/privacy" className="hover:text-orange-600 transition-colors">
+              プライバシーポリシー
+            </Link>
+            <Link href="/help" className="hover:text-orange-600 transition-colors">
+              ヘルプ・使い方
+            </Link>
+            <Link href="/contact" className="hover:text-orange-600 transition-colors">
+              お問い合わせ
+            </Link>
+          </div>
           <p>© 2025 MEMOTTO. All rights reserved.</p>
         </div>
       </footer>

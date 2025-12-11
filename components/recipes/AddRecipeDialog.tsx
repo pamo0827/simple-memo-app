@@ -14,19 +14,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-// Upload icon import removed as it's no longer used
 
 interface AddRecipeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  // onAddFromFile removed
   onAddBasic: (e: React.FormEvent, title: string, content: string) => Promise<void>
   onAddMultipleUrls: (e: React.FormEvent, urls: string[], useAI: boolean) => Promise<void>
   isScraping: boolean
   scrapeError: string
-  // isUploading removed
-  // uploadError removed
-  // uploadSuccess removed
   isBulkProcessing?: boolean
   bulkProgress?: { current: number; total: number }
   bulkError?: string
@@ -36,33 +31,26 @@ interface AddRecipeDialogProps {
 export function AddRecipeDialog({
   open,
   onOpenChange,
-  // onAddFromFile removed
   onAddBasic,
   onAddMultipleUrls,
   isScraping,
   scrapeError,
-  // isUploading removed
-  // uploadError removed
-  // uploadSuccess removed
   isBulkProcessing = false,
   bulkProgress,
   bulkError,
   autoAiSummary = true,
 }: AddRecipeDialogProps) {
-  const [urlInputText, setUrlInputText] = useState('') // Renamed from recipeUrl
-  // const [selectedFile, setSelectedFile] = useState<File | null>(null) // Removed
+  const [urlInputText, setUrlInputText] = useState('')
   const [useAI, setUseAI] = useState(true)
   const [basicTitle, setBasicTitle] = useState('')
   const [basicContent, setBasicContent] = useState('')
-  const [basicUrl, setBasicUrl] = useState('')
-
-  // handleFileChange removed
-  // handleFileSubmit removed
 
   // URLを抽出する関数（通常のテキストとCSV形式の両方に対応）
   const extractUrls = (text: string): string[] => {
     // URLの正規表現パターン（http/https）
-    const urlPattern = /https?:\[^\s,\n"'<>()]+/gi
+    // NOTE: 正規表現リテラルは複数行にまたがれないため、以前のエラーはここでの改行と\\\[の誤用が原因でした。
+    // https?::\/\/ を追加し、文字クラス内でエスケープが必要な文字も修正しました。
+    const urlPattern = /https?:\/\/[^ \n\t,'"()<>]+/gi
     const urls = text.match(urlPattern) || []
 
     // 重複を削除
@@ -106,22 +94,15 @@ export function AddRecipeDialog({
     }
   }
 
-  // handleFileSubmit removed
-
   const handleBasicSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!basicTitle.trim()) return
-    // URLがある場合は内容に追加
-    const contentWithUrl = basicUrl.trim()
-      ? `${basicContent}${basicContent ? '\n\n' : ''}${basicUrl}`
-      : basicContent
-    await onAddBasic(e, basicTitle, contentWithUrl)
+    await onAddBasic(e, basicTitle, basicContent)
     setBasicTitle('')
     setBasicContent('')
-    setBasicUrl('')
   }
 
-  const isProcessingUrls = isScraping || isBulkProcessing; // Consolidate processing states for URL input
+  const isProcessingUrls = isScraping || isBulkProcessing;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -154,7 +135,7 @@ export function AddRecipeDialog({
                       onChange={(e) => setUrlInputText(e.target.value)}
                       onPaste={handlePaste}
                       onKeyDown={handleKeyDown}
-                      placeholder="例: https://cookpad.com/recipe/123"
+                      placeholder="例: https://cookpad.com/recipe/123, https://qiita.com/items/..."
                       required
                       disabled={isProcessingUrls}
                       className="min-h-[120px] text-base"
@@ -174,7 +155,7 @@ export function AddRecipeDialog({
                     </Label>
                   </div>
                   {(scrapeError || bulkError) && <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg">{scrapeError || bulkError}</div>}
-                  {isProcessingUrls && bulkProgress && ( // Show progress for multiple URLs
+                  {isProcessingUrls && bulkProgress && (
                     <div className="p-3 text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg">
                       処理中: {bulkProgress.current} / {bulkProgress.total} 件
                     </div>
@@ -203,17 +184,6 @@ export function AddRecipeDialog({
                       onChange={(e) => setBasicTitle(e.target.value)}
                       placeholder="メモのタイトルを入力"
                       required
-                      className="text-base h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="basic-url">URL（任意）</Label>
-                    <Input
-                      id="basic-url"
-                      type="url"
-                      value={basicUrl}
-                      onChange={(e) => setBasicUrl(e.target.value)}
-                      placeholder="https://example.com"
                       className="text-base h-11"
                     />
                   </div>
