@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import { SortableRecipeItem } from '@/components/recipes/SortableRecipeItem'
 import { SortableCategoryHeader, CategoryHeader } from '@/components/recipes/SortableCategoryHeader'
+import { Sidebar } from '@/components/recipes/Sidebar'
 import { SharePageDialog } from '@/components/recipes/SharePageDialog'
 import { Avatar } from '@/components/ui/avatar'
 import { RecipeItem, ListItem } from '@/types'
