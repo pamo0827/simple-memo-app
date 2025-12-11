@@ -26,7 +26,10 @@ export class ContentScrapingService {
           success: true,
           data: {
             type: 'summary',
-            data: `# メモ\n\n${url}`
+            data: {
+              title: 'メモ',
+              content: `URL: ${url}`
+            }
           }
         }
       }
@@ -39,7 +42,10 @@ export class ContentScrapingService {
           success: true,
           data: {
             type: 'summary',
-            data: `# メモ\n\n${url}`
+            data: {
+              title: 'メモ',
+              content: `URL: ${url}`
+            }
           }
         }
       }
@@ -93,7 +99,10 @@ export class ContentScrapingService {
           success: true,
           data: {
             type: 'summary',
-            data: `# メモ\n\n${url}`
+            data: {
+              title: 'メモ',
+              content: `URL: ${url}`
+            }
           }
         }
       }
@@ -115,7 +124,10 @@ export class ContentScrapingService {
             success: true,
             data: {
               type: 'summary',
-              data: `# メモ\n\n${url}`
+              data: {
+                title: 'メモ',
+                content: `URL: ${url}`
+              }
             }
           }
         }
@@ -155,7 +167,10 @@ export class ContentScrapingService {
           success: true,
           data: {
             type: 'summary',
-            data: '# メモ\n\n画像ファイル'
+            data: {
+              title: 'メモ',
+              content: '画像ファイル'
+            }
           }
         }
       }
