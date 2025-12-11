@@ -12,72 +12,70 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog"
 import { Copy, Check } from 'lucide-react'
 
-interface ShareAllDialogProps {
+interface SharePageDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  pageId: string | null
+  pageName: string
 }
 
-export function ShareAllDialog({ open, onOpenChange }: ShareAllDialogProps) {
+export function SharePageDialog({ open, onOpenChange, pageId, pageName }: SharePageDialogProps) {
   const [isPublic, setIsPublic] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
   const [justCopied, setJustCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [userPublicShareId, setUserPublicShareId] = useState<string | null>(null)
+  const [publicShareId, setPublicShareId] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchUserSettings = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('ユーザーが認証されていません。')
+    const fetchPageSettings = async () => {
+      if (!pageId) {
+        setError('ページが選択されていません。')
         return
       }
-      setUserId(user.id)
 
-      const { data: settings, error: settingsError } = await supabase
-        .from('user_settings')
-        .select('are_recipes_public, public_share_id')
-        .eq('user_id', user.id)
+      const { data: page, error: pageError } = await supabase
+        .from('pages')
+        .select('is_public, public_share_id')
+        .eq('id', pageId)
         .single()
 
-      if (settingsError && settingsError.code !== 'PGRST116') { // PGRST116 means no rows found
-        console.error('Failed to fetch user settings:', settingsError)
+      if (pageError) {
+        console.error('Failed to fetch page settings:', pageError)
         setError('共有設定の取得に失敗しました。')
         return
       }
 
-      if (settings) {
-        setIsPublic(settings.are_recipes_public || false)
-        setUserPublicShareId(settings.public_share_id)
-        if (settings.are_recipes_public && settings.public_share_id) {
-          setShareUrl(`${window.location.origin}/share/${settings.public_share_id}`)
+      if (page) {
+        setIsPublic(page.is_public || false)
+        setPublicShareId(page.public_share_id)
+        if (page.is_public && page.public_share_id) {
+          setShareUrl(`${window.location.origin}/share/${page.public_share_id}`)
         } else {
           setShareUrl('')
         }
       } else {
         setIsPublic(false)
-        setUserPublicShareId(null)
+        setPublicShareId(null)
         setShareUrl('')
       }
     }
 
-    if (open) {
-      fetchUserSettings()
+    if (open && pageId) {
+      fetchPageSettings()
     }
-  }, [open])
+  }, [open, pageId])
 
   const handleTogglePublic = async (checked: boolean) => {
-    if (!userId) {
-      setError('ユーザーが認証されていません。')
+    if (!pageId) {
+      setError('ページが選択されていません。')
       return
     }
     setError(null)
 
-    let currentPublicShareId = userPublicShareId
+    let currentPublicShareId = publicShareId
     if (checked && !currentPublicShareId) {
       // public_share_id がない場合は新しく生成
       const { data, error: uuidError } = await supabase.rpc('generate_uuid')
@@ -87,19 +85,16 @@ export function ShareAllDialog({ open, onOpenChange }: ShareAllDialogProps) {
         return
       }
       currentPublicShareId = data
-      setUserPublicShareId(currentPublicShareId)
+      setPublicShareId(currentPublicShareId)
     }
 
     const { error: dbError } = await supabase
-      .from('user_settings')
-      .upsert(
-        { 
-          user_id: userId,
-          are_recipes_public: checked,
-          public_share_id: currentPublicShareId,
-        },
-        { onConflict: 'user_id' }
-      )
+      .from('pages')
+      .update({
+        is_public: checked,
+        public_share_id: currentPublicShareId,
+      })
+      .eq('id', pageId)
 
     if (dbError) {
       console.error('Failed to update sharing settings:', dbError)
@@ -126,9 +121,10 @@ export function ShareAllDialog({ open, onOpenChange }: ShareAllDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>すべてのメモを共有</DialogTitle>
+          <DialogTitle>「{pageName}」ページを共有</DialogTitle>
           <DialogDescription>
-            この設定をオンにすると、あなたのすべてのメモが公開URLを通じて閲覧可能になります。ただし、メモの内容を編集できるのはあなただけです。          </DialogDescription>
+            この設定をオンにすると、このページのすべてのメモが公開URLを通じて閲覧可能になります。ただし、メモの内容を編集できるのはあなただけです。
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -138,7 +134,7 @@ export function ShareAllDialog({ open, onOpenChange }: ShareAllDialogProps) {
               checked={isPublic}
               onCheckedChange={handleTogglePublic}
             />
-            <Label htmlFor="public-switch">URLを知っている全員にすべてのメモを公開する</Label>
+            <Label htmlFor="public-switch">URLを知っている全員にこのページを公開する</Label>
           </div>
           {isPublic && shareUrl && (
             <div className="space-y-2">

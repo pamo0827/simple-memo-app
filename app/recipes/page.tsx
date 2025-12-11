@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getRecipes, createRecipe, deleteRecipe, updateRecipe, updateRecipeOrder } from '@/lib/recipes'
 import { getCategories, createCategory as dbCreateCategory, updateCategory as dbUpdateCategory, deleteCategory as dbDeleteCategory } from '@/lib/categories'
+import { getPages, createPage, updatePage, deletePage, updatePageOrder, type Page } from '@/lib/pages'
 import { upsertUserSettings, getUserSettings } from '@/lib/user-settings'
 import type { Recipe, Category } from '@/lib/supabase'
-import { LogOut, Trash2, Settings, Search, Upload, Plus, GripVertical, CheckSquare, Square, X, Menu, ChevronLeft, ChevronRight, HelpCircle, Share2, Mail } from 'lucide-react'
+import { Trash2, Settings, Search, Upload, Plus, GripVertical, CheckSquare, Square, X, Menu, ChevronLeft, ChevronRight, HelpCircle, Share2, Mail } from 'lucide-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -30,7 +31,7 @@ import { SortableRecipeItem } from '@/components/recipes/SortableRecipeItem'
 import { SortableCategoryHeader, CategoryHeader } from '@/components/recipes/SortableCategoryHeader'
 import { AddRecipeDialog } from '@/components/recipes/AddRecipeDialog'
 import { Sidebar } from '@/components/recipes/Sidebar'
-import { ShareAllDialog } from '@/components/recipes/ShareAllDialog' // この行は後でShareAllDialogにリネームします
+import { SharePageDialog } from '@/components/recipes/SharePageDialog'
 import { RecipeItem, ListItem } from '@/types'
 import { useRecipeScrap } from '@/hooks/useRecipeScrap'
 
@@ -43,31 +44,25 @@ const getFaviconUrl = (url: string) => {
   }
 }
 
-/**
- * Helper function to extract title from markdown content
- * Follows Single Responsibility Principle
- */
 const extractTitleFromMarkdown = (content: string, fallback: string = 'メモ'): string => {
   const lines = content.split('\n').filter((line: string) => line.trim())
-
-  // 1. マークダウン見出しを探す
   const headingLine = lines.find((line: string) => line.match(/^#{1,3}\s+(.+)/))
   if (headingLine) {
     return headingLine.replace(/^#{1,3}\s+/, '').trim()
   }
-
-  // 2. 見出しがない場合、最初の実質的なテキスト行を使用
   const contentLine = lines.find((line: string) => !line.match(/^[#\-*•]/) && line.length > 3)
   if (contentLine) {
     let title = contentLine.substring(0, 50).trim()
     if (contentLine.length > 50) title += '...'
     return title
   }
-
   return fallback
 }
 
 export default function HomePage() {
+  const [pages, setPages] = useState<Page[]>([])
+  const [currentPageId, setCurrentPageId] = useState<string | null>(null)
+  
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [categories, setCategories] = useState<CategoryHeader[]>([])
   const [listItems, setListItems] = useState<ListItem[]>([])
@@ -84,16 +79,12 @@ export default function HomePage() {
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [nickname, setNickname] = useState<string | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [sidebarEnabled, setSidebarEnabled] = useState(false)
-  const [fontFamily, setFontFamily] = useState<'system' | 'serif' | 'mono'>('system')
-  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium')
   const [isShareDialogOpen, setShareDialogOpen] = useState(false)
+  const [autoAiSummary, setAutoAiSummary] = useState(true)
   const router = useRouter()
 
-  // SOLID Refactored: Use custom hook for recipe scraping business logic
-  const { isScraping, scrapeError, bulkProgress, scrapeUrl, scrapeMultipleUrls, scrapeYouTube, uploadFile } = useRecipeScrap()
+  const { isScraping, scrapeError, bulkProgress, scrapeUrl, scrapeMultipleUrls, scrapeYouTube } = useRecipeScrap()
 
-  // カテゴリーへのrefを保持
   const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const sensors = useSensors(
@@ -103,7 +94,6 @@ export default function HomePage() {
     })
   )
 
-  // Rebuild listItems when recipes, categories, or DB listOrder change
   useEffect(() => {
     const order = listOrder || []
     
@@ -120,6 +110,7 @@ export default function HomePage() {
       }
     })
 
+    // Add any items not in the order list to the end
     itemsMap.forEach(item => orderedItems.push(item))
 
     setListItems(orderedItems)
@@ -138,42 +129,91 @@ export default function HomePage() {
 
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('nickname, list_order, gemini_api_key, sidebar_visible, font_family, font_size')
+      .select('nickname, gemini_api_key, sidebar_visible, auto_ai_summary')
       .eq('user_id', user.id)
       .single()
 
     if (settings) {
       setNickname(settings.nickname)
-      setListOrder(settings.list_order || [])
-
-      // サイドバーの有効/無効と初期表示状態を設定
-      const sidebarSetting = settings.sidebar_visible ?? false
-      setSidebarEnabled(sidebarSetting)
-      setIsSidebarOpen(sidebarSetting)
-
-      // フォント設定
-      setFontFamily(settings.font_family || 'system')
-      setFontSize(settings.font_size || 'medium')
+      // Default to true if not set
+      const sidebarVisible = settings.sidebar_visible ?? true
+      setIsSidebarOpen(sidebarVisible)
+      setAutoAiSummary(settings.auto_ai_summary ?? true)
+    } else {
+      setIsSidebarOpen(true)
+      setAutoAiSummary(true)
     }
 
-    loadInitialData(user.id)
+    // Load pages first
+    const userPages = await getPages(user.id)
+    setPages(userPages)
+    if (userPages.length > 0) {
+      // Default to first page if no saved state (could save last visited page in user_settings later)
+      setCurrentPageId(userPages[0].id)
+      loadPageData(user.id, userPages[0].id)
+    } else {
+      // Should not happen due to migration, but handle gracefully
+      setLoading(false)
+    }
   }
 
-  const loadInitialData = async (uid: string) => {
+  const loadPageData = async (uid: string, pageId: string) => {
     setLoading(true)
     const [recipeData, categoryData] = await Promise.all([
-      getRecipes(uid),
-      getCategories(uid)
+      getRecipes(uid, pageId),
+      getCategories(uid, pageId)
     ])
+    
+    // Get current page's order
+    const currentPage = pages.find(p => p.id === pageId) || await getPages(uid).then(ps => ps.find(p => p.id === pageId))
+    
     setRecipes(recipeData)
     setCategories(categoryData.map(c => ({ ...c, type: 'category' })))
+    setListOrder(currentPage?.list_order || [])
+    
     setLoading(false)
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
+  const handlePageSelect = async (pageId: string) => {
+    if (!userId || pageId === currentPageId) return
+    setCurrentPageId(pageId)
+    await loadPageData(userId, pageId)
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false)
+    }
   }
+
+  const handleCreatePage = async (name: string) => {
+    if (!userId) return
+    const newPage = await createPage(userId, name)
+    if (newPage) {
+      setPages([...pages, newPage])
+      handlePageSelect(newPage.id)
+    }
+  }
+
+  const handleUpdatePage = async (pageId: string, name: string) => {
+    const updated = await updatePage(pageId, { name })
+    if (updated) {
+      setPages(pages.map(p => p.id === pageId ? updated : p))
+    }
+  }
+
+  const handleDeletePage = async (pageId: string) => {
+    if (pages.length <= 1) {
+      alert("最後のページは削除できません")
+      return
+    }
+    const success = await deletePage(pageId)
+    if (success) {
+      const newPages = pages.filter(p => p.id !== pageId)
+      setPages(newPages)
+      if (currentPageId === pageId) {
+        handlePageSelect(newPages[0].id)
+      }
+    }
+  }
+
 
   const handleRecipeUpdate = async (id: string, updates: Partial<Recipe>) => {
     const updatedRecipe = await updateRecipe(id, updates)
@@ -203,8 +243,11 @@ export default function HomePage() {
     const newOrder = newListItems.map(item => item.id)
     setListOrder(newOrder)
 
-    if (userId) {
-      await upsertUserSettings(userId, { list_order: newOrder })
+    if (currentPageId) {
+      // Update page order in DB
+      await updatePageOrder(currentPageId, newOrder)
+      // Update local pages state to reflect order change
+      setPages(pages.map(p => p.id === currentPageId ? { ...p, list_order: newOrder } : p))
     }
     
     const recipeIds = newListItems.filter(item => item.type === 'recipe').map(item => item.id)
@@ -212,10 +255,11 @@ export default function HomePage() {
   }
 
   const handleAddCategory = async () => {
-    if (!userId) return
-    const newCategory = await dbCreateCategory(userId, '新しいカテゴリー')
+    if (!userId || !currentPageId) return
+    const newCategory = await dbCreateCategory(userId, '新しいカテゴリー', currentPageId)
     if (newCategory) {
       setCategories([...categories, { ...newCategory, type: 'category' }])
+      setMenuOpen(false)
     }
   }
 
@@ -270,68 +314,9 @@ export default function HomePage() {
     setIsSelectionMode(false)
   }
 
-  /**
-   * SOLID Refactored: Simplified handler using useRecipeScrap hook
-   * Business logic delegated to custom hook
-   */
-  const handleAddFromFile = async (e: React.FormEvent, file: File, useAI: boolean = true) => {
-    e.preventDefault()
-    if (!file || !userId) return
-
-    setUploadSuccess('')
-
-    // Use custom hook for API call and state management
-    const result = await uploadFile(file, useAI)
-
-    if (!result) {
-      // Error is already handled by the hook (scrapeError state)
-      return
-    }
-
-    try {
-      // Handle recipe creation based on result type
-      if (result.type === 'recipe') {
-        const recipeData = result.data
-        const ingredients = (recipeData.ingredients || '').replace(/\\n/g, '\n')
-        const instructions = (recipeData.instructions || '').replace(/\\n/g, '\n')
-        const recipe = await createRecipe(userId, {
-          name: recipeData.name || '名称未設定のレシピ',
-          ingredients: ingredients,
-          instructions: instructions,
-          source_url: `file://${file.name}`,
-        })
-        if (recipe) {
-          setRecipes([recipe, ...recipes])
-          setUploadSuccess('1件のメモを追加しました。')
-        }
-      } else if (result.type === 'summary') {
-        const summaryData = (result.data || '').replace(/\\n/g, '\n')
-
-        // Extract title using helper function
-        const fileName = file.name.replace(/\.[^/.]+$/, '')
-        const name = extractTitleFromMarkdown(summaryData, `${fileName} のメモ`)
-
-        const recipe = await createRecipe(userId, {
-          name: name,
-          ingredients: '',
-          instructions: summaryData,
-          source_url: `file://${file.name}`,
-        })
-        if (recipe) {
-          setRecipes([recipe, ...recipes])
-          setUploadSuccess('1件のメモを追加しました。')
-        }
-      }
-
-      setAddDialogOpen(false)
-    } catch (error) {
-      console.error('Recipe creation error:', error)
-    }
-  }
-
   const handleAddBasic = async (e: React.FormEvent, title: string, content: string) => {
     e.preventDefault()
-    if (!title.trim() || !userId) return
+    if (!title.trim() || !userId || !currentPageId) return
 
     try {
       const recipe = await createRecipe(userId, {
@@ -339,7 +324,7 @@ export default function HomePage() {
         ingredients: '',
         instructions: content.trim() || '',
         source_url: undefined,
-      })
+      }, currentPageId)
       if (recipe) {
         setRecipes([recipe, ...recipes])
         setAddDialogOpen(false)
@@ -349,21 +334,15 @@ export default function HomePage() {
     }
   }
 
-  /**
-   * SOLID Refactored: Simplified handler using useRecipeScrap hook
-   * Business logic delegated to custom hook
-   */
   const handleAddMultipleUrls = async (e: React.FormEvent, urls: string[], useAI: boolean = true) => {
     e.preventDefault()
-    if (urls.length === 0 || !userId) return
+    if (urls.length === 0 || !userId || !currentPageId) return
 
-    // Use custom hook for bulk URL scraping
     const results = await scrapeMultipleUrls(urls, useAI)
 
     const newRecipes: Recipe[] = []
     let successCount = 0
 
-    // Process each result and create recipes
     for (const { url, data } of results) {
       if (!data) continue
 
@@ -377,34 +356,42 @@ export default function HomePage() {
             ingredients: ingredients,
             instructions: instructions,
             source_url: url,
-          })
+          }, currentPageId)
           if (recipe) {
             newRecipes.push(recipe)
             successCount++
           }
         } else if (data.type === 'summary') {
-          const summaryData = (data.data || '').replace(/\\n/g, '\n')
+          // Handle both old format (string) and new format (object with title and content)
+          let title = 'メモ'
+          let content = ''
 
-          // Extract title using helper function
-          let fallback = 'メモ'
-          if (url) {
-            try {
-              const urlObj = new URL(url)
-              const hostname = urlObj.hostname.replace('www.', '')
-              fallback = `${hostname} のメモ`
-            } catch {
-              fallback = 'メモ'
+          if (typeof data.data === 'string') {
+            // Old format: extract title from markdown
+            content = data.data.replace(/\\n/g, '\n')
+            let fallback = 'メモ'
+            if (url) {
+              try {
+                const urlObj = new URL(url)
+                const hostname = urlObj.hostname.replace('www.', '')
+                fallback = `${hostname} のメモ`
+              } catch {
+                fallback = 'メモ'
+              }
             }
+            title = extractTitleFromMarkdown(content, fallback)
+          } else if (data.data && typeof data.data === 'object') {
+            // New format: use title and content separately
+            title = data.data.title || 'メモ'
+            content = (data.data.content || '').replace(/\\n/g, '\n')
           }
 
-          const name = extractTitleFromMarkdown(summaryData, fallback)
-
           const recipe = await createRecipe(userId, {
-            name: name,
+            name: title,
             ingredients: '',
-            instructions: summaryData,
+            instructions: content,
             source_url: url,
-          })
+          }, currentPageId)
           if (recipe) {
             newRecipes.push(recipe)
             successCount++
@@ -415,7 +402,6 @@ export default function HomePage() {
       }
     }
 
-    // 成功したレシピを一括で追加
     if (newRecipes.length > 0) {
       setRecipes([...newRecipes, ...recipes])
     }
@@ -425,6 +411,61 @@ export default function HomePage() {
       setAddDialogOpen(false)
     }
   }
+
+  const handleCreateEmptyMemo = async () => {
+    if (!userId || !currentPageId) return
+    setMenuOpen(false)
+    
+    try {
+      const recipe = await createRecipe(userId, {
+        name: '新しいメモ',
+        ingredients: '',
+        instructions: '',
+        source_url: undefined,
+      }, currentPageId)
+      
+      if (recipe) {
+        setRecipes([recipe, ...recipes])
+      }
+    } catch (error) {
+      console.error('Empty memo creation error:', error)
+    }
+  }
+
+  const handleDropUrl = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation(); 
+    
+    if (!userId || !currentPageId) return;
+
+    const url = e.dataTransfer.getData('text/plain');
+    if (!url || !url.startsWith('http')) {
+        alert('無効なURLがドロップされました。');
+        return;
+    }
+
+    try {
+      const recipe = await createRecipe(userId, {
+        name: '新しいメモ', 
+        ingredients: '',
+        instructions: '',
+        source_url: url,
+      }, currentPageId);
+
+      if (recipe) {
+        setRecipes([recipe, ...recipes]);
+        alert('URLからメモが作成されました！');
+      }
+    } catch (error) {
+      console.error('Failed to create memo from URL drop:', error);
+      alert('URLからメモの作成に失敗しました。');
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); 
+    e.stopPropagation();
+  };
 
   const filteredListItems = useMemo(() => {
     if (!searchTerm) return listItems
@@ -440,12 +481,10 @@ export default function HomePage() {
     })
   }, [listItems, searchTerm])
 
-  // カテゴリーへスクロール
   const scrollToCategory = (categoryId: string) => {
     const element = categoryRefs.current.get(categoryId)
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      // モバイルでサイドバーを閉じる
       if (window.innerWidth < 768) {
         setIsSidebarOpen(false)
       }
@@ -461,44 +500,48 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex">
-      {sidebarEnabled && (
-        <Sidebar
-          isOpen={isSidebarOpen}
-          onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-          categories={categories}
-          onCategoryClick={scrollToCategory}
-        />
-      )}
+    <div 
+      className="min-h-screen bg-white flex"
+      onDrop={handleDropUrl}
+      onDragOver={handleDragOver}
+    >
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        categories={categories}
+        onCategoryClick={scrollToCategory}
+        pages={pages}
+        currentPageId={currentPageId}
+        onPageSelect={handlePageSelect}
+        onCreatePage={handleCreatePage}
+        onUpdatePage={handleUpdatePage}
+        onDeletePage={handleDeletePage}
+        nickname={nickname}
+      />
 
       {/* メインコンテンツ */}
-      <div className={`flex-1 overflow-x-hidden font-family-${fontFamily} font-size-${fontSize}`}>
+      <div className="flex-1 overflow-x-hidden">
         <div className="max-w-4xl mx-auto px-4 py-8">
           <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100">
             <div className="flex items-center gap-2">
-              {sidebarEnabled && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="md:hidden hover:bg-gray-50"
-                  title="メニュー"
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="md:hidden hover:bg-gray-50"
+                title="メニュー"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
               {nickname && <p className="fluid-text-base font-bold">{nickname}さん</p>}
             </div>
             <div className="flex items-center gap-2">
               {!isSelectionMode && (
                 <>
-                  <Button variant="ghost" size="icon" onClick={() => setSearchVisible(!isSearchVisible)} title="検索" className="hover:bg-gray-50"><Search className="h-5 w-5" /></Button>
                   <Button variant="ghost" size="icon" onClick={toggleSelectionMode} title="削除" className="hover:bg-gray-50"><Trash2 className="h-5 w-5" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => router.push('/contact')} title="お問い合わせ" className="hover:bg-gray-50"><Mail className="h-5 w-5" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => router.push('/help')} title="ヘルプ" className="hover:bg-gray-50"><HelpCircle className="h-5 w-5" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => setShareDialogOpen(true)} title="共有" className="hover:bg-gray-50"><Share2 className="h-5 w-5" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => router.push('/settings')} title="設定" className="hover:bg-gray-50"><Settings className="h-5 w-5" /></Button>
-                  <Button variant="ghost" size="icon" onClick={handleLogout} title="ログアウト" className="hover:bg-gray-50"><LogOut className="h-5 w-5" /></Button>
                 </>
               )}
             </div>
@@ -520,15 +563,6 @@ export default function HomePage() {
                 <X className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">キャンセル</span>
               </Button>
-            </div>
-          </div>
-        )}
-
-        {isSearchVisible && (
-          <div className="mb-8">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input type="text" placeholder="タイトルや内容で検索..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 h-11 text-base" />
             </div>
           </div>
         )}
@@ -623,7 +657,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* オーバーレイ */}
       {isMenuOpen && (
         <div
           className="fixed inset-0 bg-black/20 z-30 transition-opacity duration-300"
@@ -631,7 +664,6 @@ export default function HomePage() {
         />
       )}
 
-      {/* メニューボタン */}
       <div className={`fixed bottom-24 right-6 flex flex-col gap-3 z-40 transition-all duration-300 ease-in-out ${ 
         isMenuOpen
           ? 'opacity-100 translate-y-0 pointer-events-auto'
@@ -646,17 +678,13 @@ export default function HomePage() {
         </Button>
         <Button
           variant="default"
-          className="h-12 px-6 shadow-lg rounded-full transition-transform duration-200 hover:scale-105"
-          onClick={() => {
-            setMenuOpen(false)
-            setAddDialogOpen(true)
-          }}
+          className="h-12 px-6 shadow-lg rounded-full transition-transform duration-200 hover:scale-110"
+          onClick={handleCreateEmptyMemo}
         >
           メモを追加
         </Button>
       </div>
 
-      {/* 右下の＋ボタン */}
       <Button
         variant="default"
         size="icon"
@@ -671,21 +699,17 @@ export default function HomePage() {
       <AddRecipeDialog
         open={isAddDialogOpen}
         onOpenChange={setAddDialogOpen}
-        onAddFromFile={handleAddFromFile}
         onAddBasic={handleAddBasic}
         onAddMultipleUrls={handleAddMultipleUrls}
         isScraping={isScraping}
         scrapeError={scrapeError}
-        isUploading={isScraping}
-        uploadError={scrapeError}
-        uploadSuccess={uploadSuccess}
-        isBulkProcessing={isScraping && !!bulkProgress}
-        bulkProgress={bulkProgress || undefined}
-        bulkError={scrapeError}
+        autoAiSummary={autoAiSummary}
       />
-      <ShareAllDialog
+      <SharePageDialog
         open={isShareDialogOpen}
         onOpenChange={setShareDialogOpen}
+        pageId={currentPageId}
+        pageName={pages.find(p => p.id === currentPageId)?.name || 'ページ'}
       />
     </div>
   )
