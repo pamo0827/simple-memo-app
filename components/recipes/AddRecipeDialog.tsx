@@ -14,119 +14,63 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Upload } from 'lucide-react'
-
-type Site = {
-  name: string
-  url: string
-  favicon: string
-  note?: string
-}
-
-type SiteGroup = {
-  genre: string
-  sites: Site[]
-}
-
-const siteGroups: SiteGroup[] = [
-  {
-    genre: '動画',
-    sites: [
-      { name: 'YouTube', url: 'https://www.youtube.com/', favicon: 'https://www.google.com/s2/favicons?domain=youtube.com&sz=64', note: '※字幕・概要欄を解析' },
-    ]
-  },
-  {
-    genre: 'レシピ',
-    sites: [
-      { name: 'Cookpad', url: 'https://cookpad.com/jp/', favicon: 'https://www.google.com/s2/favicons?domain=cookpad.com&sz=64' },
-      { name: 'クラシル', url: 'https://www.kurashiru.com/', favicon: 'https://www.google.com/s2/favicons?domain=www.kurashiru.com&sz=64' },
-      { name: 'DELISH KITCHEN', url: 'https://delishkitchen.tv/', favicon: 'https://www.google.com/s2/favicons?domain=delishkitchen.tv&sz=64' },
-      { name: '白ごはん.com', url: 'https://www.sirogohan.com/', favicon: 'https://www.google.com/s2/favicons?domain=sirogohan.com&sz=64' }
-    ]
-  },
-  {
-    genre: '勉強',
-    sites: [
-      { name: 'マナピタイムズ', url: 'https://manabitimes.jp/', favicon: 'https://www.google.com/s2/favicons?domain=manabitimes.jp&sz=64' },
-      { name: 'パスナビ', url: 'https://passnavi.obunsha.co.jp/', favicon: 'https://www.google.com/s2/favicons?domain=passnavi.obunsha.co.jp&sz=64' },
-      { name: 'STUDY HACKER', url: 'https://studyhacker.net/', favicon: 'https://www.google.com/s2/favicons?domain=studyhacker.net&sz=64' }
-    ]
-  },
-  {
-    genre: 'ゲーム',
-    sites: [
-      { name: 'GameWith', url: 'https://gamewith.jp/switch-2/', favicon: 'https://www.google.com/s2/favicons?domain=gamewith.jp&sz=64' },
-      { name: 'Game8', url: 'https://game8.jp/', favicon: 'https://www.google.com/s2/favicons?domain=game8.jp&sz=64' },
-      { name: '神ゲー攻略', url: 'https://kamigame.jp/', favicon: 'https://www.google.com/s2/favicons?domain=kamigame.jp&sz=64' }
-    ]
-  },
-  {
-    genre: '技術記事',
-    sites: [
-      { name: 'Qiita', url: 'https://qiita.com/', favicon: 'https://www.google.com/s2/favicons?domain=qiita.com&sz=64' },
-      { name: 'Zenn', url: 'https://zenn.dev/', favicon: 'https://www.google.com/s2/favicons?domain=zenn.dev&sz=64' },
-      { name: 'note', url: 'https://note.com/', favicon: 'https://www.google.com/s2/favicons?domain=note.com&sz=64' }
-    ]
-  }
-];
+// Upload icon import removed as it's no longer used
 
 interface AddRecipeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAddFromFile: (e: React.FormEvent, file: File, useAI: boolean) => Promise<void>
+  // onAddFromFile removed
   onAddBasic: (e: React.FormEvent, title: string, content: string) => Promise<void>
   onAddMultipleUrls: (e: React.FormEvent, urls: string[], useAI: boolean) => Promise<void>
   isScraping: boolean
   scrapeError: string
-  isUploading: boolean
-  uploadError: string
-  uploadSuccess: string
+  // isUploading removed
+  // uploadError removed
+  // uploadSuccess removed
   isBulkProcessing?: boolean
   bulkProgress?: { current: number; total: number }
   bulkError?: string
+  autoAiSummary?: boolean
 }
 
 export function AddRecipeDialog({
   open,
   onOpenChange,
-  onAddFromFile,
+  // onAddFromFile removed
   onAddBasic,
   onAddMultipleUrls,
   isScraping,
   scrapeError,
-  isUploading,
-  uploadError,
-  uploadSuccess,
+  // isUploading removed
+  // uploadError removed
+  // uploadSuccess removed
   isBulkProcessing = false,
   bulkProgress,
   bulkError,
+  autoAiSummary = true,
 }: AddRecipeDialogProps) {
   const [urlInputText, setUrlInputText] = useState('') // Renamed from recipeUrl
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  // const [selectedFile, setSelectedFile] = useState<File | null>(null) // Removed
   const [useAI, setUseAI] = useState(true)
   const [basicTitle, setBasicTitle] = useState('')
   const [basicContent, setBasicContent] = useState('')
   const [basicUrl, setBasicUrl] = useState('')
-  // bulkUrlsText state removed as it's integrated
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0])
-    }
-  }
+  // handleFileChange removed
+  // handleFileSubmit removed
 
   // URLを抽出する関数（通常のテキストとCSV形式の両方に対応）
   const extractUrls = (text: string): string[] => {
     // URLの正規表現パターン（http/https）
-    const urlPattern = /https?:\/\/[^\s,\n"'<>()]+/gi
+    const urlPattern = /https?:\[^\s,\n"'<>()]+/gi
     const urls = text.match(urlPattern) || []
 
     // 重複を削除
     return Array.from(new Set(urls))
   }
 
-  const handleUrlSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleUrlSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
     if (!urlInputText.trim()) return
 
     const urls = extractUrls(urlInputText)
@@ -134,18 +78,35 @@ export function AddRecipeDialog({
       return
     }
 
-    await onAddMultipleUrls(e, urls, useAI)
+    const mockEvent = e || { preventDefault: () => {} } as React.FormEvent
+    await onAddMultipleUrls(mockEvent, urls, useAI)
     setUrlInputText('')
   }
 
-  const handleFileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedFile) return
-    await onAddFromFile(e, selectedFile, useAI)
-    setSelectedFile(null)
-    const fileInput = document.getElementById('file-upload-dialog') as HTMLInputElement
-    if (fileInput) fileInput.value = ''
+  // Handle paste event for auto-submission
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!autoAiSummary || !useAI) return
+
+    const pastedText = e.clipboardData.getData('text')
+    const urls = extractUrls(pastedText)
+
+    if (urls.length > 0) {
+      // Wait for the state to update
+      setTimeout(() => {
+        handleUrlSubmit()
+      }, 100)
+    }
   }
+
+  // Handle Enter key for auto-submission
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && autoAiSummary && useAI) {
+      e.preventDefault()
+      handleUrlSubmit()
+    }
+  }
+
+  // handleFileSubmit removed
 
   const handleBasicSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -169,10 +130,9 @@ export function AddRecipeDialog({
           <DialogTitle className="text-center">メモの追加</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="url" className="mt-4">
-          <TabsList className="grid w-full grid-cols-3"> {/* Changed from 4 to 3 columns */}
+          <TabsList className="grid w-full grid-cols-2"> {/* Changed from 3 to 2 columns */}
             <TabsTrigger value="url">URLから追加</TabsTrigger>
-            {/* "まとめて追加"タブを削除 */}
-            <TabsTrigger value="file">写真から追加</TabsTrigger>
+            {/* "写真から追加"タブを削除 */}
             <TabsTrigger value="basic">何もなしで追加</TabsTrigger>
           </TabsList>
           <TabsContent value="url">
@@ -183,7 +143,7 @@ export function AddRecipeDialog({
                     <Label htmlFor="url-input">URLを入力</Label>
                     <div className="text-sm text-gray-600 mb-2 p-3 rounded-md">
                       <p className="mb-1">URLを1つ、または複数入力してください。</p>
-                      <p className="mb-2">改行、カンマ、スペースで区切られたURLを自動検出します。</p>
+                      <p className="mb-2">改行、カンマ、スペースで区切られたURLや、文章中のURLまで自動検出します。</p>
                       <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 mt-2">
                         X（Twitter）とInstagramはAI要約機能が使用できません。
                       </p>
@@ -192,6 +152,8 @@ export function AddRecipeDialog({
                       id="url-input"
                       value={urlInputText}
                       onChange={(e) => setUrlInputText(e.target.value)}
+                      onPaste={handlePaste}
+                      onKeyDown={handleKeyDown}
                       placeholder="例: https://cookpad.com/recipe/123"
                       required
                       disabled={isProcessingUrls}
@@ -217,7 +179,7 @@ export function AddRecipeDialog({
                       処理中: {bulkProgress.current} / {bulkProgress.total} 件
                     </div>
                   )}
-                  <Button type="submit" disabled={isProcessingUrls || !urlInputText.trim() || extractUrls(urlInputText).length === 0} className="w-full h-11">
+                  <Button type="submit" disabled={isProcessingUrls || !urlInputText.trim() || extractUrls(urlInputText).length === 0} className="w-full h-9 text-sm">
                     {isProcessingUrls
                       ? `処理中... (${bulkProgress?.current || 0}/${bulkProgress?.total || 0})`
                       : (useAI ? '内容を解析' : 'URLを保存')}
@@ -228,35 +190,6 @@ export function AddRecipeDialog({
             </Card>
           </TabsContent>
 
-          <TabsContent value="file">
-            <Card className="border-none shadow-none">
-              <CardContent className="pt-6">
-                <form onSubmit={handleFileSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Input id="file-upload-dialog" type="file" onChange={handleFileChange} accept="image/jpeg,image/png,application/pdf" required disabled={isUploading} />
-                  </div>
-                  <div className="flex items-center space-x-2 py-2">
-                    <Switch
-                      id="use-ai-file"
-                      checked={useAI}
-                      onCheckedChange={setUseAI}
-                    />
-                    <Label htmlFor="use-ai-file" className="cursor-pointer text-sm">
-                      AI要約を使用する
-                    </Label>
-                  </div>
-                  {uploadError && <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg">{uploadError}</div>}
-                  {uploadSuccess && <div className="p-3 text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg">{uploadSuccess}</div>}
-                  <Button type="submit" disabled={isUploading || !selectedFile} className="w-full h-11"><Upload className="mr-2 h-4 w-4" />{isUploading ? '解析中...' : (useAI ? '内容を解析' : 'ファイルを保存')}</Button>
-                </form>
-                <div className="text-xs text-gray-500 text-center mt-6">
-                  <p>画像やPDFをアップロードすれば、</p>
-                  <p>文字やURLを解析して自動で追加します。</p>
-                  <p className="mt-1">対応形式：JPEG、PNG、PDF</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
           <TabsContent value="basic">
             <Card className="border-none shadow-none">
               <CardContent className="pt-6">

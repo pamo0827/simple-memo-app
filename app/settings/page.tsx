@@ -4,13 +4,21 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getUserSettings, upsertUserSettings } from '@/lib/user-settings'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Fingerprint, Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { systemPrompt, imageSystemPrompt, videoSystemPrompt } from '@/lib/ai'
+import {
+  isPasskeyAvailable,
+  registerPasskey,
+  getUserPasskeys,
+  deletePasskey,
+  updatePasskeyName,
+  type PasskeyCredential
+} from '@/lib/passkey'
 export default function SettingsPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -28,20 +36,28 @@ export default function SettingsPage() {
 
   const [geminiApiKey, setGeminiApiKey] = useState('')
   const [aiSummaryEnabled, setAiSummaryEnabled] = useState(true)
+  const [autoAiSummary, setAutoAiSummary] = useState(true)
   const [customPrompt, setCustomPrompt] = useState('')
   const [summaryLength, setSummaryLength] = useState<'short' | 'medium' | 'long'>('medium')
   const [apiKeysSaving, setApiKeysSaving] = useState(false)
   const [apiKeysMessage, setApiKeysMessage] = useState('')
 
-  const [sidebarVisible, setSidebarVisible] = useState(false)
-  const [fontFamily, setFontFamily] = useState<'system' | 'serif' | 'mono'>('system')
-  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium')
-  const [displaySaving, setDisplaySaving] = useState(false)
-  const [displayMessage, setDisplayMessage] = useState('')
-
   const [showDefaultPrompts, setShowDefaultPrompts] = useState(false)
   const [autoSaving, setAutoSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<string>('')
+
+  // パスキー関連のstate
+  const [passkeys, setPasskeys] = useState<PasskeyCredential[]>([])
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false)
+  const [passkeyLoading, setPasskeyLoading] = useState(false)
+  const [passkeyMessage, setPasskeyMessage] = useState('')
+  const [editingPasskeyId, setEditingPasskeyId] = useState<string | null>(null)
+  const [editingPasskeyName, setEditingPasskeyName] = useState('')
+  const [userEmail, setUserEmail] = useState('')
+
+  // 無料枠の使用状況
+  const [freeTierUsage, setFreeTierUsage] = useState<number>(0)
+  const [freeTierLimit, setFreeTierLimit] = useState<number>(10)
 
   // 無料枠かどうかの判定（APIキーが設定されていない場合は無料枠）
   const isFreeTier = !geminiApiKey || geminiApiKey.trim() === ''
@@ -57,7 +73,14 @@ export default function SettingsPage() {
         return
       }
       setUserId(user.id)
+      setUserEmail(user.email || '')
       loadSettings(user.id)
+
+      // パスキーの可用性をチェック
+      setPasskeyAvailable(isPasskeyAvailable())
+
+      // パスキーリストを読み込み
+      loadPasskeys(user.id)
     }
     checkUser()
   }, [router])
@@ -69,13 +92,104 @@ export default function SettingsPage() {
       setNickname(settings.nickname || '')
       setGeminiApiKey(settings.gemini_api_key || '')
       setAiSummaryEnabled(settings.ai_summary_enabled ?? true)
+      setAutoAiSummary(settings.auto_ai_summary ?? true)
       setCustomPrompt(settings.custom_prompt || '')
       setSummaryLength(settings.summary_length || 'medium')
-      setSidebarVisible(settings.sidebar_visible ?? false)
-      setFontFamily(settings.font_family || 'system')
-      setFontSize(settings.font_size || 'medium')
+
+      // 無料枠の使用状況を取得
+      if (!settings.gemini_api_key || settings.gemini_api_key.trim() === '') {
+        const { data: usageData } = await supabase
+          .from('user_settings')
+          .select('daily_usage_count, last_usage_date')
+          .eq('user_id', uid)
+          .single()
+
+        if (usageData) {
+          // 今日の日付と比較して、リセットが必要かチェック
+          const today = new Date().toISOString().split('T')[0]
+          const lastUsageDate = usageData.last_usage_date
+
+          if (lastUsageDate && lastUsageDate === today) {
+            setFreeTierUsage(usageData.daily_usage_count || 0)
+          } else {
+            // 日付が違う場合は0にリセット
+            setFreeTierUsage(0)
+          }
+        }
+      }
     }
     setLoading(false)
+  }
+
+  const loadPasskeys = async (uid: string) => {
+    const userPasskeys = await getUserPasskeys(uid)
+    setPasskeys(userPasskeys)
+  }
+
+  const handleRegisterPasskey = async () => {
+    if (!userId || !userEmail) return
+
+    setPasskeyLoading(true)
+    setPasskeyMessage('')
+
+    const result = await registerPasskey(
+      { email: userEmail, userId },
+      'このデバイス'
+    )
+
+    if (result.success) {
+      setPasskeyMessage('パスキーを登録しました')
+      await loadPasskeys(userId)
+    } else {
+      setPasskeyMessage(result.error || 'パスキーの登録に失敗しました')
+    }
+
+    setTimeout(() => setPasskeyMessage(''), 3000)
+    setPasskeyLoading(false)
+  }
+
+  const handleDeletePasskey = async (passkeyId: string) => {
+    if (!confirm('このパスキーを削除しますか？')) return
+
+    setPasskeyLoading(true)
+    const result = await deletePasskey(passkeyId)
+
+    if (result.success) {
+      setPasskeyMessage('パスキーを削除しました')
+      if (userId) await loadPasskeys(userId)
+    } else {
+      setPasskeyMessage(result.error || 'パスキーの削除に失敗しました')
+    }
+
+    setTimeout(() => setPasskeyMessage(''), 3000)
+    setPasskeyLoading(false)
+  }
+
+  const handleUpdatePasskeyName = async (passkeyId: string, newName: string) => {
+    if (!newName.trim()) return
+
+    const result = await updatePasskeyName(passkeyId, newName.trim())
+
+    if (result.success) {
+      if (userId) await loadPasskeys(userId)
+      setEditingPasskeyId(null)
+      setEditingPasskeyName('')
+    } else {
+      setPasskeyMessage(result.error || 'パスキー名の更新に失敗しました')
+      setTimeout(() => setPasskeyMessage(''), 3000)
+    }
+  }
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '未使用'
+    const date = new Date(dateString)
+    return date.toLocaleString('ja-JP', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   // 自動保存関数
@@ -112,20 +226,7 @@ export default function SettingsPage() {
     debouncedAutoSave({ nickname })
   }, [nickname, userId, loading, debouncedAutoSave])
 
-  useEffect(() => {
-    if (!userId || loading) return
-    autoSave({ sidebar_visible: sidebarVisible })
-  }, [sidebarVisible, userId, loading, autoSave])
-
-  useEffect(() => {
-    if (!userId || loading) return
-    autoSave({ font_family: fontFamily })
-  }, [fontFamily, userId, loading, autoSave])
-
-  useEffect(() => {
-    if (!userId || loading) return
-    autoSave({ font_size: fontSize })
-  }, [fontSize, userId, loading, autoSave])
+  // `sidebarVisible` は常にONになるため、設定項目から削除
 
   useEffect(() => {
     if (!userId || loading) return
@@ -136,6 +237,11 @@ export default function SettingsPage() {
     if (!userId || loading) return
     autoSave({ ai_summary_enabled: aiSummaryEnabled })
   }, [aiSummaryEnabled, userId, loading, autoSave])
+
+  useEffect(() => {
+    if (!userId || loading) return
+    autoSave({ auto_ai_summary: autoAiSummary })
+  }, [autoAiSummary, userId, loading, autoSave])
 
   useEffect(() => {
     if (!userId || loading) return
@@ -190,25 +296,7 @@ export default function SettingsPage() {
     setPasswordSaving(false)
   }
 
-  const handleDisplaySave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!userId) return
-
-    setDisplaySaving(true)
-    setDisplayMessage('')
-    const success = await upsertUserSettings(userId, {
-      sidebar_visible: sidebarVisible,
-      font_family: fontFamily,
-      font_size: fontSize,
-    })
-    if (success) {
-      setDisplayMessage('表示設定を保存しました')
-    } else {
-      setDisplayMessage('保存に失敗しました')
-    }
-    setTimeout(() => setDisplayMessage(''), 3000)
-    setDisplaySaving(false)
-  }
+  // `handleDisplaySave`, `displaySaving`, `displayMessage` はサイドバー設定削除に伴い不要
 
   const handleApiKeysSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -223,6 +311,7 @@ export default function SettingsPage() {
     const success = await upsertUserSettings(userId, {
       gemini_api_key: geminiApiKey,
       ai_summary_enabled: aiSummaryEnabled,
+      auto_ai_summary: autoAiSummary,
       custom_prompt: finalCustomPrompt,
       summary_length: summaryLength,
     })
@@ -309,122 +398,147 @@ export default function SettingsPage() {
             </Button>
           </form>
 
-          {/* Display Settings */}
-          <div className="space-y-6 pb-8 border-b">
-            <h2 className="text-lg font-semibold">表示設定</h2>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="sidebarVisible"
-                checked={sidebarVisible}
-                onCheckedChange={setSidebarVisible}
-              />
-              <Label htmlFor="sidebarVisible" className="cursor-pointer">
-                目次サイドバーを表示する
-              </Label>
-            </div>
-            <p className="text-xs text-gray-500">
-              ONにすると、メモページに目次サイドバーが表示されます。OFFにすると、サイドバー機能が完全に非表示になります。
-            </p>
-
-            <div className="space-y-2">
-              <Label htmlFor="fontFamily">フォント</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="fontFamily"
-                    value="system"
-                    checked={fontFamily === 'system'}
-                    onChange={(e) => setFontFamily(e.target.value as 'system' | 'serif' | 'mono')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">システム</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="fontFamily"
-                    value="serif"
-                    checked={fontFamily === 'serif'}
-                    onChange={(e) => setFontFamily(e.target.value as 'system' | 'serif' | 'mono')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm font-serif">明朝体</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="fontFamily"
-                    value="mono"
-                    checked={fontFamily === 'mono'}
-                    onChange={(e) => setFontFamily(e.target.value as 'system' | 'serif' | 'mono')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm font-mono">等幅</span>
-                </label>
+          {/* Passkey Management */}
+          {passkeyAvailable && (
+            <div className="space-y-6 pb-8 border-b">
+              <div className="flex items-center gap-2">
+                <Fingerprint className="h-5 w-5" />
+                <h2 className="text-lg font-semibold">パスキー管理</h2>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="fontSize">文字サイズ</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="fontSize"
-                    value="small"
-                    checked={fontSize === 'small'}
-                    onChange={(e) => setFontSize(e.target.value as 'small' | 'medium' | 'large')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">小</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="fontSize"
-                    value="medium"
-                    checked={fontSize === 'medium'}
-                    onChange={(e) => setFontSize(e.target.value as 'small' | 'medium' | 'large')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-base">中</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="fontSize"
-                    value="large"
-                    checked={fontSize === 'large'}
-                    onChange={(e) => setFontSize(e.target.value as 'small' | 'medium' | 'large')}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-lg">大</span>
-                </label>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  パスキーを使うと、生体認証（顔認証、指紋認証）や画面ロックで簡単にログインできます。
+                </p>
               </div>
+
+              {passkeyMessage && (
+                <p className={`text-sm ${passkeyMessage.includes('失敗') || passkeyMessage.includes('エラー') ? 'text-red-600' : 'text-green-600'}`}>
+                  {passkeyMessage}
+                </p>
+              )}
+
+              {passkeys.length > 0 ? (
+                <div className="space-y-3">
+                  <Label>登録済みパスキー</Label>
+                  {passkeys.map((passkey) => (
+                    <div key={passkey.id} className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
+                      <div className="flex-1">
+                        {editingPasskeyId === passkey.id ? (
+                          <Input
+                            value={editingPasskeyName}
+                            onChange={(e) => setEditingPasskeyName(e.target.value)}
+                            onBlur={() => {
+                              if (editingPasskeyName.trim()) {
+                                handleUpdatePasskeyName(passkey.id, editingPasskeyName)
+                              } else {
+                                setEditingPasskeyId(null)
+                                setEditingPasskeyName('')
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && editingPasskeyName.trim()) {
+                                handleUpdatePasskeyName(passkey.id, editingPasskeyName)
+                              }
+                              if (e.key === 'Escape') {
+                                setEditingPasskeyId(null)
+                                setEditingPasskeyName('')
+                              }
+                            }}
+                            autoFocus
+                            className="text-sm"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{passkey.device_name || 'パスキー'}</p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                setEditingPasskeyId(passkey.id)
+                                setEditingPasskeyName(passkey.device_name || 'パスキー')
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">
+                          最終使用: {formatDate(passkey.last_used_at)}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          登録日: {formatDate(passkey.created_at)}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeletePasskey(passkey.id)}
+                        disabled={passkeyLoading}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">登録済みのパスキーはありません</p>
+              )}
+
+              <Button
+                onClick={handleRegisterPasskey}
+                disabled={passkeyLoading}
+                variant="outline"
+                className="w-full"
+              >
+                <Fingerprint className="h-4 w-4 mr-2" />
+                {passkeyLoading ? '登録中...' : '新しいパスキーを登録'}
+              </Button>
             </div>
-            <p className="text-xs text-gray-500">変更は自動的に保存されます</p>
-          </div>
+          )}
 
           {/* AI Settings */}
           <div className="space-y-6">
             <h2 className="text-lg font-semibold">AI設定</h2>
 
             {isFreeTier && (
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <p className="text-sm text-orange-800">
-                  <strong>🎁 無料枠を利用中</strong>（1日10回まで）<br />
-                  独自のGemini APIキーを設定すると、無制限でご利用いただけます。
+              <div className={`${freeTierUsage >= freeTierLimit ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'} border rounded-lg p-4`}>
+                <p className={`text-sm ${freeTierUsage >= freeTierLimit ? 'text-red-800' : 'text-orange-800'}`}>
+                  <strong>🎁 無料枠を利用中</strong>（1日{freeTierLimit}回まで）<br />
+                  {freeTierUsage >= freeTierLimit ? (
+                    <>
+                      <span className="font-bold text-red-900">本日の無料枠を使い切りました。</span><br />
+                      独自のGemini APIキーを設定すると、今すぐ無制限でご利用いただけます。
+                    </>
+                  ) : (
+                    <>
+                      本日の使用回数: <strong>{freeTierUsage}/{freeTierLimit}回</strong><br />
+                      独自のGemini APIキーを設定すると、無制限でご利用いただけます。
+                    </>
+                  )}
                 </p>
               </div>
             )}
 
             <div className="space-y-2">
               <Label htmlFor="geminiApiKey">Gemini APIキー</Label>
-              <Input id="geminiApiKey" type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} placeholder="AIzaSy..." />
+              <Input
+                id="geminiApiKey"
+                type="password"
+                value={geminiApiKey}
+                onChange={(e) => setGeminiApiKey(e.target.value)}
+                placeholder="AIzaSy..."
+              />
               <p className="text-xs text-gray-500">
                 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a> から取得
               </p>
+              {geminiApiKey && (
+                <p className="text-xs text-green-600">
+                  ✓ APIキーが設定されています（変更は自動的に保存されます）
+                </p>
+              )}
             </div>
             <div className="flex items-center space-x-2">
               <Switch
@@ -438,6 +552,20 @@ export default function SettingsPage() {
             </div>
             <p className="text-xs text-gray-500">
               OFFにすると、URLや画像を追加する際にAIによる自動要約を行わず、基本情報のみを保存します。
+            </p>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="autoAiSummary"
+                checked={autoAiSummary}
+                onCheckedChange={setAutoAiSummary}
+                disabled={!aiSummaryEnabled}
+              />
+              <Label htmlFor="autoAiSummary" className="cursor-pointer">
+                URL入力時に自動でAI要約を開始
+              </Label>
+            </div>
+            <p className="text-xs text-gray-500">
+              ONにすると、URLを入力した瞬間に自動的にAI要約を開始します。OFFの場合は、ボタンをクリックして手動で開始します。
             </p>
             <div className="space-y-2">
               <Label htmlFor="summaryLength">要約の文字数</Label>
@@ -480,54 +608,86 @@ export default function SettingsPage() {
                 AI要約の文字数を調整できます。短い=簡潔、普通=バランス、詳しい=詳細な要約
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="customPrompt">カスタムプロンプト（任意）</Label>
-              <Textarea
-                id="customPrompt"
-                value={customPrompt}
-                onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder="AIに特定の指示を与える場合はここに入力してください。空欄の場合はデフォルトプロンプトを使用します。"
-                className="min-h-[150px] text-sm"
-                disabled={isFreeTier}
-              />
-              {isFreeTier ? (
-                <p className="text-xs text-orange-600 font-semibold">
-                  ⚠️ カスタムプロンプトは無料枠では使用できません。独自のGemini APIキーを設定すると利用可能になります。
-                </p>
-              ) : (
+            {!isFreeTier && (
+              <div className="space-y-2">
+                <Label htmlFor="customPrompt">カスタムプロンプト（任意）</Label>
+                <Textarea
+                  id="customPrompt"
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  placeholder="AIに特定の指示を与える場合はここに入力してください。空欄の場合はデフォルトプロンプトを使用します。"
+                  className="min-h-[150px] text-sm"
+                />
                 <p className="text-xs text-gray-500">
                   例: 「レシピの場合は材料を箇条書きで、作り方を番号付きリストで抽出してください」
                 </p>
-              )}
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowDefaultPrompts(!showDefaultPrompts)}
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
-                >
-                  {showDefaultPrompts ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  デフォルトプロンプトを確認
-                </button>
-                {showDefaultPrompts && (
-                  <div className="mt-3 space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">テキスト/ウェブページ用プロンプト</h4>
-                      <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">{systemPrompt}</pre>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowDefaultPrompts(!showDefaultPrompts)}
+                    className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    {showDefaultPrompts ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    デフォルトプロンプトを確認
+                  </button>
+                  {showDefaultPrompts && (
+                    <div className="mt-3 space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">テキスト/ウェブページ用プロンプト</h4>
+                        <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">{systemPrompt}</pre>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">画像用プロンプト</h4>
+                        <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">{imageSystemPrompt}</pre>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">動画用プロンプト（YouTube Shorts）</h4>
+                        <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">{videoSystemPrompt}</pre>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">画像用プロンプト</h4>
-                      <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">{imageSystemPrompt}</pre>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">動画用プロンプト（YouTube Shorts）</h4>
-                      <pre className="text-xs text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">{videoSystemPrompt}</pre>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
+            )}
             <p className="text-xs text-gray-500">変更は自動的に保存されます（テキスト入力は1秒後）</p>
           </div>
+        </div>
+
+        {/* お問い合わせ */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-12 mb-8">
+          <h2 className="text-lg font-semibold mb-4">お問い合わせ</h2>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-600">
+              ご質問やご要望がありましたら、Twitterでお気軽にお声がけください。
+            </p>
+            <a
+              href="https://x.com/shiro3504"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:underline text-sm font-medium"
+            >
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+              @shiro3504
+            </a>
+          </div>
+        </div>
+
+        {/* ログアウト */}
+        <div className="mt-8 mb-8 pb-8 border-t pt-8">
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              if (confirm('ログアウトしますか？')) {
+                await supabase.auth.signOut()
+                router.push('/login')
+              }
+            }}
+            className="w-full"
+          >
+            ログアウト
+          </Button>
         </div>
       </div>
     </div>

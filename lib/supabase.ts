@@ -12,11 +12,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
-export type RecipeSection = {
-  title: string
-  content: string
-}
-
 export type Recipe = {
   id: string
   user_id: string
@@ -24,7 +19,6 @@ export type Recipe = {
   description?: string
   ingredients: string
   instructions: string
-  sections?: RecipeSection[]
   source_url?: string
   display_order?: number
   created_at: string
@@ -43,14 +37,13 @@ export type UserSettings = {
   public_share_id: string | null
   are_recipes_public: boolean
   ai_summary_enabled: boolean
+  auto_ai_summary: boolean
   custom_prompt: string | null
   sidebar_visible: boolean
   is_using_free_tier: boolean
   daily_usage_count: number
   last_usage_date: string
   summary_length: 'short' | 'medium' | 'long'
-  font_family: 'system' | 'serif' | 'mono'
-  font_size: 'small' | 'medium' | 'large'
   created_at: string
   updated_at: string
 }

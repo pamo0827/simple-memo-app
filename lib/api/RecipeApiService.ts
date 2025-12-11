@@ -9,14 +9,30 @@
  */
 
 import type { RecipeData, ScrapeUrlRequest, UploadFileRequest, ApiResponse } from './types'
+import { supabase } from '@/lib/supabase'
 
 class RecipeApiService {
+  private async getAuthHeaders(): Promise<HeadersInit> {
+    const { data: { session } } = await supabase.auth.getSession()
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`
+    }
+
+    return headers
+  }
+
   private async fetchApi<T>(url: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     try {
+      const authHeaders = await this.getAuthHeaders()
+
       const response = await fetch(url, {
         ...options,
         headers: {
-          'Content-Type': 'application/json',
+          ...authHeaders,
           ...options.headers,
         },
       })
@@ -78,8 +94,15 @@ class RecipeApiService {
       formData.append('file', request.file)
       formData.append('skipAI', String(request.skipAI || !request.useAI))
 
+      const { data: { session } } = await supabase.auth.getSession()
+      const headers: HeadersInit = {}
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`
+      }
+
       const response = await fetch('/api/ocr-recipe', {
         method: 'POST',
+        headers,
         body: formData,
       })
 
