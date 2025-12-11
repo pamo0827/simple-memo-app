@@ -29,8 +29,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import { SortableRecipeItem } from '@/components/recipes/SortableRecipeItem'
 import { SortableCategoryHeader, CategoryHeader } from '@/components/recipes/SortableCategoryHeader'
-import { AddRecipeDialog } from '@/components/recipes/AddRecipeDialog'
-import { Sidebar } from '@/components/recipes/Sidebar'
 import { SharePageDialog } from '@/components/recipes/SharePageDialog'
 import { Avatar } from '@/components/ui/avatar'
 import { RecipeItem, ListItem } from '@/types'
@@ -73,7 +71,6 @@ export default function HomePage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [uploadSuccess, setUploadSuccess] = useState('')
-  const [isAddDialogOpen, setAddDialogOpen] = useState(false)
   const [isSearchVisible, setSearchVisible] = useState(false)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -315,104 +312,6 @@ export default function HomePage() {
     setCategories(categories.filter(c => !selectedIds.has(c.id)))
     setSelectedIds(new Set())
     setIsSelectionMode(false)
-  }
-
-  const handleAddBasic = async (e: React.FormEvent, title: string, content: string) => {
-    e.preventDefault()
-    if (!title.trim() || !userId || !currentPageId) return
-
-    try {
-      const recipe = await createRecipe(userId, {
-        name: title.trim(),
-        ingredients: '',
-        instructions: content.trim() || '',
-        source_url: undefined,
-      }, currentPageId)
-      if (recipe) {
-        setRecipes([recipe, ...recipes])
-        setAddDialogOpen(false)
-      }
-    } catch (error) {
-      console.error('Basic memo creation error:', error)
-    }
-  }
-
-  const handleAddMultipleUrls = async (e: React.FormEvent, urls: string[], useAI: boolean = true) => {
-    e.preventDefault()
-    if (urls.length === 0 || !userId || !currentPageId) return
-
-    const results = await scrapeMultipleUrls(urls, useAI)
-
-    const newRecipes: Recipe[] = []
-    let successCount = 0
-
-    for (const { url, data } of results) {
-      if (!data) continue
-
-      try {
-        if (data.type === 'recipe') {
-          const recipeData = data.data
-          const ingredients = (recipeData.ingredients || '').replace(/\\n/g, '\n')
-          const instructions = (recipeData.instructions || '').replace(/\\n/g, '\n')
-          const recipe = await createRecipe(userId, {
-            name: recipeData.name || '名称未設定のレシピ',
-            ingredients: ingredients,
-            instructions: instructions,
-            source_url: url,
-          }, currentPageId)
-          if (recipe) {
-            newRecipes.push(recipe)
-            successCount++
-          }
-        } else if (data.type === 'summary') {
-          // Handle both old format (string) and new format (object with title and content)
-          let title = 'メモ'
-          let content = ''
-
-          if (typeof data.data === 'string') {
-            // Old format: extract title from markdown
-            content = data.data.replace(/\\n/g, '\n')
-            let fallback = 'メモ'
-            if (url) {
-              try {
-                const urlObj = new URL(url)
-                const hostname = urlObj.hostname.replace('www.', '')
-                fallback = `${hostname} のメモ`
-              } catch {
-                fallback = 'メモ'
-              }
-            }
-            title = extractTitleFromMarkdown(content, fallback)
-          } else if (data.data && typeof data.data === 'object') {
-            // New format: use title and content separately
-            title = data.data.title || 'メモ'
-            content = (data.data.content || '').replace(/\\n/g, '\n')
-          }
-
-          const recipe = await createRecipe(userId, {
-            name: title,
-            ingredients: '',
-            instructions: content,
-            source_url: url,
-          }, currentPageId)
-          if (recipe) {
-            newRecipes.push(recipe)
-            successCount++
-          }
-        }
-      } catch (error) {
-        console.error(`Error creating recipe for URL ${url}:`, error)
-      }
-    }
-
-    if (newRecipes.length > 0) {
-      setRecipes([...newRecipes, ...recipes])
-    }
-
-    const errorCount = urls.length - successCount
-    if (errorCount === 0) {
-      setAddDialogOpen(false)
-    }
   }
 
   const handleCreateEmptyMemo = async () => {
@@ -705,15 +604,6 @@ export default function HomePage() {
       </Button>
 
 
-      <AddRecipeDialog
-        open={isAddDialogOpen}
-        onOpenChange={setAddDialogOpen}
-        onAddBasic={handleAddBasic}
-        onAddMultipleUrls={handleAddMultipleUrls}
-        isScraping={isScraping}
-        scrapeError={scrapeError}
-        autoAiSummary={autoAiSummary}
-      />
       <SharePageDialog
         open={isShareDialogOpen}
         onOpenChange={setShareDialogOpen}
