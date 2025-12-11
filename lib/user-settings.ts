@@ -28,6 +28,7 @@ export async function upsertUserSettings(
     list_order?: string[] | null
     summary_length?: 'short' | 'medium' | 'long' | null
     ai_summary_enabled?: boolean | null
+    auto_ai_summary?: boolean | null
     custom_prompt?: string | null
     sidebar_visible?: boolean | null
     font_family?: 'system' | 'serif' | 'mono' | null
