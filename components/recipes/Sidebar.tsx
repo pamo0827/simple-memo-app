@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { X, ChevronLeft, ChevronRight, Plus, File, MoreHorizontal, Pencil, Trash2, List } from 'lucide-react'
+import { Avatar } from '@/components/ui/avatar'
 import type { CategoryHeader } from '@/components/recipes/SortableCategoryHeader'
 import type { Page } from '@/lib/pages'
 import {
@@ -26,6 +27,7 @@ interface SidebarProps {
   onUpdatePage: (pageId: string, name: string) => void
   onDeletePage: (pageId: string) => void
   nickname?: string | null
+  avatarUrl?: string | null
 }
 
 export function Sidebar({
@@ -39,7 +41,8 @@ export function Sidebar({
   onCreatePage,
   onUpdatePage,
   onDeletePage,
-  nickname
+  nickname,
+  avatarUrl
 }: SidebarProps) {
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false)
   const [isRenameDialogOpen, setRenameDialogOpen] = useState(false)
@@ -176,7 +179,14 @@ export function Sidebar({
           />
           <aside className="md:hidden fixed left-0 top-0 bottom-0 w-72 bg-white z-50 shadow-lg flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="font-bold text-gray-900">{nickname ? `${nickname}さん` : 'メニュー'}</h2>
+              {nickname ? (
+                <div className="flex items-center gap-3">
+                  <Avatar src={avatarUrl} nickname={nickname} size="sm" />
+                  <h2 className="font-bold text-gray-900">{nickname}さん</h2>
+                </div>
+              ) : (
+                <h2 className="font-bold text-gray-900">メニュー</h2>
+              )}
               <Button
                 variant="ghost"
                 size="icon"

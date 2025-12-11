@@ -31,6 +31,9 @@ export type UserSettings = {
   id: string
   user_id: string
   nickname: string | null
+  avatar_url: string | null
+  avatar_provider: 'twitter' | 'manual' | null
+  avatar_storage_path: string | null
   gemini_api_key: string | null
   gemini_model_name: string | null
   list_order: string[] | null

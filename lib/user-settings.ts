@@ -2,15 +2,11 @@ import { supabase } from './supabase'
 import type { UserSettings } from './supabase'
 
 export async function getUserSettings(userId: string): Promise<UserSettings | null> {
-  console.log('Fetching settings for user:', userId)
-
   const { data, error } = await supabase
     .from('user_settings')
     .select('*')
     .eq('user_id', userId)
     .maybeSingle()
-
-  console.log('getUserSettings result:', { data, error })
 
   if (error) {
     console.error('Settings fetch error:', error)
@@ -24,6 +20,9 @@ export async function upsertUserSettings(
   userId: string,
   settings: {
     nickname?: string | null
+    avatar_url?: string | null
+    avatar_provider?: 'twitter' | 'manual' | null
+    avatar_storage_path?: string | null
     gemini_api_key?: string | null
     list_order?: string[] | null
     summary_length?: 'short' | 'medium' | 'long' | null
@@ -35,8 +34,6 @@ export async function upsertUserSettings(
     font_size?: 'small' | 'medium' | 'large' | null
   }
 ): Promise<boolean> {
-  console.log('Upserting settings for user:', userId, 'with settings:', settings)
-
   const { data, error } = await supabase
     .from('user_settings')
     .upsert(
@@ -49,8 +46,6 @@ export async function upsertUserSettings(
       }
     )
     .select()
-
-  console.log('upsertUserSettings result:', { data, error })
 
   if (error) {
     console.error('Settings upsert error:', error)

@@ -32,6 +32,7 @@ import { SortableCategoryHeader, CategoryHeader } from '@/components/recipes/Sor
 import { AddRecipeDialog } from '@/components/recipes/AddRecipeDialog'
 import { Sidebar } from '@/components/recipes/Sidebar'
 import { SharePageDialog } from '@/components/recipes/SharePageDialog'
+import { Avatar } from '@/components/ui/avatar'
 import { RecipeItem, ListItem } from '@/types'
 import { useRecipeScrap } from '@/hooks/useRecipeScrap'
 
@@ -78,6 +79,7 @@ export default function HomePage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [nickname, setNickname] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isShareDialogOpen, setShareDialogOpen] = useState(false)
   const [autoAiSummary, setAutoAiSummary] = useState(true)
@@ -129,12 +131,13 @@ export default function HomePage() {
 
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('nickname, gemini_api_key, sidebar_visible, auto_ai_summary')
+      .select('nickname, avatar_url, gemini_api_key, sidebar_visible, auto_ai_summary')
       .eq('user_id', user.id)
       .single()
 
     if (settings) {
       setNickname(settings.nickname)
+      setAvatarUrl(settings.avatar_url || null)
       // Default to true if not set
       const sidebarVisible = settings.sidebar_visible ?? true
       setIsSidebarOpen(sidebarVisible)
@@ -517,6 +520,7 @@ export default function HomePage() {
         onUpdatePage={handleUpdatePage}
         onDeletePage={handleDeletePage}
         nickname={nickname}
+        avatarUrl={avatarUrl}
       />
 
       {/* メインコンテンツ */}
@@ -533,7 +537,12 @@ export default function HomePage() {
               >
                 <Menu className="h-5 w-5" />
               </Button>
-              {nickname && <p className="fluid-text-base font-bold">{nickname}さん</p>}
+              {nickname && (
+                <div className="flex items-center gap-2">
+                  <Avatar src={avatarUrl} nickname={nickname} size="sm" />
+                  <p className="fluid-text-base font-bold">{nickname}さん</p>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {!isSelectionMode && (

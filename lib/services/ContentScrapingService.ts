@@ -1,5 +1,5 @@
 // ContentScrapingService: Single Responsibility - Handle content scraping logic
-import { processText, processImage, processVideo } from '@/lib/ai'
+import { processText, processImage, processVideo, processUrl } from '@/lib/ai'
 import { getContentText } from '@/lib/content'
 import { extractYouTubeVideoId, getYouTubeFullText, isYouTubeShorts } from '@/lib/youtube'
 import { isAllowedUrl } from '@/lib/url-validation'
@@ -34,8 +34,37 @@ export class ContentScrapingService {
         }
       }
 
-      // Get content
-      const text = await getContentText(url)
+      // Get content via scraping
+      let text = ''
+      try {
+        text = await getContentText(url)
+      } catch (fetchError) {
+        // スクレイピング失敗時：URLのみをGeminiに渡して処理を試みる
+        try {
+          const result = await processUrl(
+            url,
+            userContext.apiKey,
+            userContext.settings?.custom_prompt,
+            userContext.settings?.summary_length
+          )
+          return {
+            success: true,
+            data: result
+          }
+        } catch (geminiError) {
+          // Geminiでも失敗した場合、基本情報のみ保存
+          return {
+            success: true,
+            data: {
+              type: 'summary',
+              data: {
+                title: 'メモ',
+                content: `URL: ${url}\n\n※ コンテンツの取得に失敗しましたが、URLは保存されました。`
+              }
+            }
+          }
+        }
+      }
 
       if (!text || this.isErrorPage(text)) {
         return {
@@ -218,13 +247,30 @@ export class ContentScrapingService {
    */
   private getErrorMessage(error: unknown): string {
     if (error instanceof Error) {
-      if (error.message.includes('fetch failed') || error.message.includes('Failed to fetch')) {
-        return '指定されたURLにアクセスできませんでした。'
+      const message = error.message.toLowerCase();
+
+      // クォータ超過・レート制限エラー
+      if (message.includes('429') || message.includes('quota exceeded') || message.includes('rate limit')) {
+        return 'AI処理の利用上限に達しました。しばらく時間をおいてから再度お試しください。'
       }
-      if (error.message.includes('timeout') || error.message.includes('timed out')) {
+
+      // 404エラー（ページが見つからない）
+      if (message.includes('404') || message.includes('not found')) {
+        return '指定されたページが見つかりませんでした。URLが正しいか確認してください。'
+      }
+
+      // ネットワークエラー
+      if (message.includes('fetch failed') || message.includes('failed to fetch')) {
+        return '指定されたURLにアクセスできませんでした。URLが正しいか確認してください。'
+      }
+
+      // タイムアウトエラー
+      if (message.includes('timeout') || message.includes('timed out')) {
         return 'リクエストがタイムアウトしました。もう一度お試しください。'
       }
-      if (error.message.includes('Invalid or forbidden URL')) {
+
+      // URL検証エラー
+      if (message.includes('invalid or forbidden url')) {
         return '無効なURLです。'
       }
     }

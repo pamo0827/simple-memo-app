@@ -10,6 +10,15 @@ import { Label } from '@/components/ui/label'
 import { Eye, EyeOff, Fingerprint } from 'lucide-react'
 import { isPasskeyAvailable, authenticateWithPasskey, registerPasskey } from '@/lib/passkey'
 
+// Twitter icon SVG component
+function TwitterIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+    </svg>
+  )
+}
+
 function LoginComponent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -33,6 +42,25 @@ function LoginComponent() {
     // パスキーが利用可能かチェック
     setPasskeyAvailable(isPasskeyAvailable())
   }, [searchParams])
+
+  // Twitter OAuth認証
+  const handleTwitterLogin = async () => {
+    setLoading(true)
+    setError('')
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'twitter',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+    }
+    // OAuthはリダイレクトするため、ここでloadingをfalseにしない
+  }
 
   // パスキーで自動ログイン
   const handlePasskeyLogin = async () => {
@@ -266,6 +294,23 @@ function LoginComponent() {
             <CardTitle className="text-center">{isSignupMode ? '新規登録' : 'ログイン'}</CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Twitter OAuth ログインボタン（ログインモード時のみ） */}
+            {!isSignupMode && (
+              <div className="mb-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleTwitterLogin}
+                  disabled={loading}
+                  className="w-full border-2 border-blue-400 text-blue-600 hover:bg-blue-50"
+                  size="lg"
+                >
+                  <TwitterIcon className="h-5 w-5 mr-2" />
+                  Twitterでログイン
+                </Button>
+              </div>
+            )}
+
             {/* パスキーログインボタン（ログインモード時のみ） */}
             {!isSignupMode && passkeyAvailable && (
               <div className="mb-6">
@@ -280,13 +325,17 @@ function LoginComponent() {
                   <Fingerprint className="h-5 w-5 mr-2" />
                   パスキーでログイン
                 </Button>
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-white text-gray-500">または</span>
-                  </div>
+              </div>
+            )}
+
+            {/* 区切り線（ログインモード時のみ） */}
+            {!isSignupMode && (
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">または</span>
                 </div>
               </div>
             )}
