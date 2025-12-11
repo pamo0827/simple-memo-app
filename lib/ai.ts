@@ -35,11 +35,14 @@ export const systemPrompt = `あなたは、ウェブページやテキストの
 
 {
   "type": "summary",
-  "data": "## {内容を表す簡潔なタイトル}\n\n### 概要\n{2-3文で全体を要約}\n\n### 重要なポイント\n- ポイント1\n- ポイント2\n- ポイント3\n\n### 詳細\n{必要に応じて補足情報}"
+  "data": {
+    "title": "内容を表す具体的で明確なタイトル（15-30文字）",
+    "content": "## 概要\n{2-3文で全体を要約}\n\n## 重要なポイント\n- ポイント1\n- ポイント2\n- ポイント3\n\n## 詳細\n{必要に応じて補足情報}"
+  }
 }
 
 **要約の指針：**
-1. タイトルは10文字以内で簡潔に
+1. titleは内容の本質を表す具体的なタイトル（15-30文字）
 2. 概要は2-3文で核心を伝える
 3. 重要なポイントは3-5個に絞る
 4. 箇条書きを活用して読みやすく
@@ -55,7 +58,7 @@ export const systemPrompt = `あなたは、ウェブページやテキストの
 - マークダウンの構造を守る
 - 改行は \n で表現`
 
-async function callGenerativeAI(apiKey: string, modelParams: Omit<ModelParams, 'model'>, content: Content) {
+async function callGenerativeAI(apiKey: string, modelParams: Omit<ModelParams, 'model'>, content: any) {
   const genAI = new GoogleGenerativeAI(apiKey);
   let lastError: any;
 
@@ -183,11 +186,14 @@ export const imageSystemPrompt = `あなたは、画像から情報を抽出し�
 
 {
   "type": "summary",
-  "data": "## {画像の内容を表すタイトル}\n\n### 概要\n{画像の全体的な内容}\n\n### 主な要素\n- 要素1\n- 要素2\n- 要素3\n\n### 補足\n{必要に応じて詳細情報}"
+  "data": {
+    "title": "画像の内容を表す具体的なタイトル（15-30文字）",
+    "content": "## 概要\n{画像の全体的な内容}\n\n## 主な要素\n- 要素1\n- 要素2\n- 要素3\n\n## 補足\n{必要に応じて詳細情報}"
+  }
 }
 
 **要約の指針：**
-1. タイトルは画像の主題を簡潔に
+1. titleは画像の本質を表す具体的なタイトル（15-30文字）
 2. 概要は2-3文で画像全体を説明
 3. 主な要素は3-5個の箇条書き
 4. テキストが含まれる場合は正確に転記
@@ -228,7 +234,7 @@ export async function processImage(
     ? `この画像から情報を抽出してください。\n\n投稿の説明文:\n${caption}`
     : 'この画像から情報を抽出してください。'
 
-    const content: Content = [
+    const content = [
       prompt,
       {
         inlineData: {
@@ -300,11 +306,14 @@ export const videoSystemPrompt = `あなたは、動画コンテンツから情�
 
 {
   "type": "summary",
-  "data": "## {動画の内容を表すタイトル}\n\n### 概要\n{動画の主題と全体像}\n\n### 主なポイント\n- ポイント1\n- ポイント2\n- ポイント3\n\n### 詳細\n{必要に応じて補足情報}"
+  "data": {
+    "title": "動画の内容を表す具体的なタイトル（15-30文字）",
+    "content": "## 概要\n{動画の主題と全体像}\n\n## 主なポイント\n- ポイント1\n- ポイント2\n- ポイント3\n\n## 詳細\n{必要に応じて補足情報}"
+  }
 }
 
 **要約の指針：**
-1. タイトルは動画の主題を簡潔に（10文字以内）
+1. titleは動画の本質を表す具体的なタイトル（15-30文字）
 2. 概要は2-3文で動画全体を要約
 3. 主なポイントは3-5個に絞る
 4. 時系列に沿って整理
@@ -341,7 +350,7 @@ export async function processVideo(
   }
 
   try {
-    const content: Content = [
+    const content = [
       'この動画から情報を抽出してください。',
       {
         fileData: {
