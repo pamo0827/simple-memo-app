@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Recipe } from '@/lib/supabase'
-import { GripVertical, CheckSquare, Square, FileText, Pencil, Sparkles, RotateCw } from 'lucide-react'
+import { GripVertical, CheckSquare, Square, FileText, Pencil, RotateCw } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
@@ -45,7 +45,7 @@ export function SortableRecipeItem({
   const [tempInstructions, setTempInstructions] = useState(recipe.instructions)
   const [hasUsedAI, setHasUsedAI] = useState(false)
 
-  const { scrapeUrl, isScraping } = useRecipeScrap()
+  const { scrapeUrl, isScraping, scrapeError } = useRecipeScrap()
 
   const {
     attributes,
@@ -75,14 +75,14 @@ export function SortableRecipeItem({
   }
 
   const handleSaveIngredients = () => {
-    if (tempIngredients !== recipe.ingredients && tempIngredients.trim()) {
+    if (tempIngredients !== recipe.ingredients) {
       onUpdateRecipe(recipe.id, { ingredients: tempIngredients })
     }
     setEditingIngredients(false)
   }
 
   const handleSaveInstructions = () => {
-    if (tempInstructions !== recipe.instructions && tempInstructions.trim()) {
+    if (tempInstructions !== recipe.instructions) {
       onUpdateRecipe(recipe.id, { instructions: tempInstructions })
     }
     setEditingInstructions(false)
@@ -243,73 +243,84 @@ export function SortableRecipeItem({
                         size="icon"
                         onClick={handleRunAI}
                         disabled={isScraping}
-                        className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50 flex-shrink-0"
+                        className="h-8 w-8 hover:bg-amber-50 flex-shrink-0"
                         title={hasUsedAI ? 'AI再取得' : 'AIで情報を取得'}
                     >
                         {hasUsedAI ? (
                             <RotateCw className={`h-4 w-4 ${isScraping ? 'animate-spin' : ''}`} />
                         ) : (
-                            <Sparkles className="h-4 w-4" />
+                            <img src="/gemini.png" alt="Gemini AI" className="h-4 w-4" />
                         )}
                     </Button>
                 </div>
                 )
             ) : null}
+
+            {/* AIエラーメッセージ */}
+            {scrapeError && (
+              <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">{scrapeError}</p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-6">
-            {(recipe.ingredients.trim() || editingIngredients) && (
-              <div className="pl-5 py-1">
-                {editingIngredients ? (
-                  <Textarea
-                    value={tempIngredients}
-                    onChange={(e) => setTempIngredients(e.target.value)}
-                    onBlur={handleSaveIngredients}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setTempIngredients(recipe.ingredients)
-                        setEditingIngredients(false)
-                      }
-                    }}
-                    autoFocus
-                    className="text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[250px] bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  />
-                ) : (
-                  <div
-                    className="prose prose-sm max-w-none cursor-text text-gray-700 leading-loose [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-gray-900 [&_h2]:mb-3 [&_h2]:mt-0 [&_h3]:text-base [&_h3]:font-medium [&_h3]:text-gray-800 [&_h3]:mb-2 [&_h3]:mt-4 [&_ul]:my-3 [&_ol]:my-3 [&_li]:my-1.5 [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5"
-                    onDoubleClick={() => setEditingIngredients(true)}
-                  >
+            <div className="pl-5 py-1">
+              {editingIngredients ? (
+                <Textarea
+                  value={tempIngredients}
+                  onChange={(e) => setTempIngredients(e.target.value)}
+                  onBlur={handleSaveIngredients}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setTempIngredients(recipe.ingredients)
+                      setEditingIngredients(false)
+                    }
+                  }}
+                  autoFocus
+                  className="text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[250px] bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+              ) : (
+                <div
+                  className="prose prose-sm max-w-none cursor-text text-gray-700 leading-loose [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-gray-900 [&_h2]:mb-3 [&_h2]:mt-0 [&_h3]:text-base [&_h3]:font-medium [&_h3]:text-gray-800 [&_h3]:mb-2 [&_h3]:mt-4 [&_ul]:my-3 [&_ol]:my-3 [&_li]:my-1.5 [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 min-h-[40px]"
+                  onDoubleClick={() => setEditingIngredients(true)}
+                >
+                  {recipe.ingredients.trim() ? (
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{recipe.ingredients}</ReactMarkdown>
-                  </div>
-                )}
-              </div>
-            )}
-            {(recipe.instructions.trim() || editingInstructions) && (
-              <div className="pl-5 py-1">
-                {editingInstructions ? (
-                  <Textarea
-                    value={tempInstructions}
-                    onChange={(e) => setTempInstructions(e.target.value)}
-                    onBlur={handleSaveInstructions}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setTempInstructions(recipe.instructions)
-                        setEditingInstructions(false)
-                      }
-                    }}
-                    autoFocus
-                    className="text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[300px] bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  />
-                ) : (
-                  <div
-                    className="prose prose-sm max-w-none cursor-text text-gray-700 leading-loose [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-gray-900 [&_h2]:mb-3 [&_h2]:mt-0 [&_h3]:text-base [&_h3]:font-medium [&_h3]:text-gray-800 [&_h3]:mb-2 [&_h3]:mt-4 [&_ul]:my-3 [&_ol]:my-3 [&_li]:my-1.5 [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5"
-                    onDoubleClick={() => setEditingInstructions(true)}
-                  >
+                  ) : (
+                    <p className="text-gray-400 italic">ダブルクリックして食材を追加...</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="pl-5 py-1">
+              {editingInstructions ? (
+                <Textarea
+                  value={tempInstructions}
+                  onChange={(e) => setTempInstructions(e.target.value)}
+                  onBlur={handleSaveInstructions}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setTempInstructions(recipe.instructions)
+                      setEditingInstructions(false)
+                    }
+                  }}
+                  autoFocus
+                  className="text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[300px] bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+              ) : (
+                <div
+                  className="prose prose-sm max-w-none cursor-text text-gray-700 leading-loose [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-gray-900 [&_h2]:mb-3 [&_h2]:mt-0 [&_h3]:text-base [&_h3]:font-medium [&_h3]:text-gray-800 [&_h3]:mb-2 [&_h3]:mt-4 [&_ul]:my-3 [&_ol]:my-3 [&_li]:my-1.5 [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 min-h-[40px]"
+                  onDoubleClick={() => setEditingInstructions(true)}
+                >
+                  {recipe.instructions.trim() ? (
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{recipe.instructions}</ReactMarkdown>
-                  </div>
-                )}
-              </div>
-            )}
+                  ) : (
+                    <p className="text-gray-400 italic">ダブルクリックして手順を追加...</p>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* 埋め込みプレビュー */}
             {(() => {

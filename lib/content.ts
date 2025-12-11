@@ -35,12 +35,17 @@ export async function getContentText(url: string): Promise<string> {
     const info = await youtube.getBasicInfo(videoId)
     return info?.basic_info?.short_description || ''
   } else {
-    // タイムアウトとUser-Agentを設定
+    // タイムアウトとブラウザ風のヘッダーを設定
     const response = await fetch(url, {
       signal: AbortSignal.timeout(10000), // 10秒でタイムアウト
       redirect: 'follow',
       headers: {
-        'User-Agent': 'MEMOTTO/1.0'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       }
     })
     if (!response.ok) {

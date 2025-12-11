@@ -4,13 +4,15 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getUserSettings, upsertUserSettings } from '@/lib/user-settings'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronDown, ChevronUp, Fingerprint, Trash2, Pencil } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Fingerprint, Trash2, Pencil, Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { systemPrompt, imageSystemPrompt, videoSystemPrompt } from '@/lib/ai'
+import { Avatar } from '@/components/ui/avatar'
+import { uploadAvatarFile, deleteAvatar } from '@/lib/avatar'
 import {
   isPasskeyAvailable,
   registerPasskey,
@@ -29,6 +31,14 @@ export default function SettingsPage() {
   const [nicknameSaving, setNicknameSaving] = useState(false)
   const [nicknameMessage, setNicknameMessage] = useState('')
 
+  // Avatar state
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarProvider, setAvatarProvider] = useState<string | null>(null)
+  const [avatarStoragePath, setAvatarStoragePath] = useState<string | null>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarMessage, setAvatarMessage] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordSaving, setPasswordSaving] = useState(false)
@@ -45,6 +55,7 @@ export default function SettingsPage() {
   const [showDefaultPrompts, setShowDefaultPrompts] = useState(false)
   const [autoSaving, setAutoSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<string>('')
+  const [apiKeySaveStatus, setApiKeySaveStatus] = useState<'saved' | 'saving' | 'error' | ''>('')
 
   // パスキー関連のstate
   const [passkeys, setPasskeys] = useState<PasskeyCredential[]>([])
@@ -58,12 +69,15 @@ export default function SettingsPage() {
   // 無料枠の使用状況
   const [freeTierUsage, setFreeTierUsage] = useState<number>(0)
   const [freeTierLimit, setFreeTierLimit] = useState<number>(10)
+  const [loadingUsage, setLoadingUsage] = useState(false)
 
   // 無料枠かどうかの判定（APIキーが設定されていない場合は無料枠）
   const isFreeTier = !geminiApiKey || geminiApiKey.trim() === ''
 
   // debounce用のタイマー
   const debounceTimer = useRef<NodeJS.Timeout | null>(null)
+  const isInitialLoad = useRef(true)
+  const initialApiKey = useRef<string>('')
 
   useEffect(() => {
     const checkUser = async () => {
@@ -90,7 +104,12 @@ export default function SettingsPage() {
     const settings = await getUserSettings(uid)
     if (settings) {
       setNickname(settings.nickname || '')
-      setGeminiApiKey(settings.gemini_api_key || '')
+      setAvatarUrl(settings.avatar_url || null)
+      setAvatarProvider(settings.avatar_provider || null)
+      setAvatarStoragePath(settings.avatar_storage_path || null)
+      const apiKey = settings.gemini_api_key || ''
+      setGeminiApiKey(apiKey)
+      initialApiKey.current = apiKey // 初期値を保存
       setAiSummaryEnabled(settings.ai_summary_enabled ?? true)
       setAutoAiSummary(settings.auto_ai_summary ?? true)
       setCustomPrompt(settings.custom_prompt || '')
@@ -119,11 +138,45 @@ export default function SettingsPage() {
       }
     }
     setLoading(false)
+    // 初回ロード完了をマーク
+    setTimeout(() => {
+      isInitialLoad.current = false
+    }, 100)
   }
 
   const loadPasskeys = async (uid: string) => {
     const userPasskeys = await getUserPasskeys(uid)
     setPasskeys(userPasskeys)
+  }
+
+  const refreshUsage = async () => {
+    if (!userId) return
+    setLoadingUsage(true)
+
+    try {
+      const { data: usageData } = await supabase
+        .from('user_settings')
+        .select('daily_usage_count, last_usage_date')
+        .eq('user_id', userId)
+        .single()
+
+      if (usageData) {
+        // 今日の日付と比較して、リセットが必要かチェック
+        const today = new Date().toISOString().split('T')[0]
+        const lastUsageDate = usageData.last_usage_date
+
+        if (lastUsageDate && lastUsageDate === today) {
+          setFreeTierUsage(usageData.daily_usage_count || 0)
+        } else {
+          // 日付が違う場合は0にリセット
+          setFreeTierUsage(0)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh usage:', error)
+    } finally {
+      setLoadingUsage(false)
+    }
   }
 
   const handleRegisterPasskey = async () => {
@@ -244,9 +297,35 @@ export default function SettingsPage() {
   }, [autoAiSummary, userId, loading, autoSave])
 
   useEffect(() => {
-    if (!userId || loading) return
-    debouncedAutoSave({ gemini_api_key: geminiApiKey })
-  }, [geminiApiKey, userId, loading, debouncedAutoSave])
+    if (!userId || loading || isInitialLoad.current) return
+    if (geminiApiKey === initialApiKey.current) return
+
+    setApiKeySaveStatus('saving')
+
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current)
+    }
+
+    debounceTimer.current = setTimeout(async () => {
+      try {
+        const success = await upsertUserSettings(userId, { gemini_api_key: geminiApiKey })
+
+        if (success) {
+          setApiKeySaveStatus('saved')
+          initialApiKey.current = geminiApiKey
+          const now = new Date()
+          setLastSaved(`${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}に保存`)
+
+          setTimeout(() => setApiKeySaveStatus(''), 3000)
+        } else {
+          setApiKeySaveStatus('error')
+        }
+      } catch (error) {
+        console.error('API key save error:', error)
+        setApiKeySaveStatus('error')
+      }
+    }, 1000)
+  }, [geminiApiKey, userId, loading])
 
   useEffect(() => {
     if (!userId || loading) return
@@ -294,6 +373,70 @@ export default function SettingsPage() {
     }
     setTimeout(() => setPasswordMessage(''), 3000)
     setPasswordSaving(false)
+  }
+
+  // Avatar upload handler
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !userId) return
+
+    setAvatarUploading(true)
+    setAvatarMessage('')
+
+    const result = await uploadAvatarFile(userId, file)
+
+    if (result.success) {
+      const success = await upsertUserSettings(userId, {
+        avatar_url: result.avatarUrl,
+        avatar_provider: 'manual',
+        avatar_storage_path: result.storagePath,
+      })
+
+      if (success) {
+        setAvatarUrl(result.avatarUrl || null)
+        setAvatarProvider('manual')
+        setAvatarStoragePath(result.storagePath || null)
+        setAvatarMessage('アバターを更新しました')
+      } else {
+        setAvatarMessage('アバターの保存に失敗しました')
+      }
+    } else {
+      setAvatarMessage(result.error || 'アバターのアップロードに失敗しました')
+    }
+
+    setTimeout(() => setAvatarMessage(''), 3000)
+    setAvatarUploading(false)
+  }
+
+  // Avatar delete handler
+  const handleAvatarDelete = async () => {
+    if (!userId || !avatarStoragePath) return
+    if (!confirm('アバターを削除しますか？')) return
+
+    setAvatarUploading(true)
+    setAvatarMessage('')
+
+    const deleted = await deleteAvatar(avatarStoragePath)
+
+    if (deleted) {
+      const success = await upsertUserSettings(userId, {
+        avatar_url: null,
+        avatar_provider: null,
+        avatar_storage_path: null,
+      })
+
+      if (success) {
+        setAvatarUrl(null)
+        setAvatarProvider(null)
+        setAvatarStoragePath(null)
+        setAvatarMessage('アバターを削除しました')
+      }
+    } else {
+      setAvatarMessage('アバターの削除に失敗しました')
+    }
+
+    setTimeout(() => setAvatarMessage(''), 3000)
+    setAvatarUploading(false)
   }
 
   // `handleDisplaySave`, `displaySaving`, `displayMessage` はサイドバー設定削除に伴い不要
@@ -353,7 +496,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-12">
-          {/* Nickname Section */}
+          {/* Nickname and Avatar Section */}
           <div className="space-y-6 pb-8 border-b">
             <h2 className="text-lg font-semibold">プロフィール</h2>
             <div className="space-y-2">
@@ -366,6 +509,61 @@ export default function SettingsPage() {
                 placeholder="表示名"
               />
               <p className="text-xs text-gray-500">変更は自動的に保存されます</p>
+            </div>
+
+            {/* Avatar Section */}
+            <div className="space-y-4">
+              <Label>プロフィール画像</Label>
+              <div className="flex items-center gap-4">
+                <Avatar src={avatarUrl} nickname={nickname} size="xl" />
+                <div className="flex-1 space-y-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      size="sm"
+                    >
+                      <Camera className="h-4 w-4 mr-2" />
+                      {avatarUploading ? 'アップロード中...' : '画像を選択'}
+                    </Button>
+                    {avatarUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={handleAvatarDelete}
+                        disabled={avatarUploading}
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        削除
+                      </Button>
+                    )}
+                  </div>
+                  {avatarProvider === 'twitter' && (
+                    <p className="text-xs text-gray-500">
+                      Twitterから取得したプロフィール画像です
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    推奨: 正方形の画像、2MB以下
+                  </p>
+                </div>
+              </div>
+              {avatarMessage && (
+                <p className={`text-sm ${avatarMessage.includes('失敗') ? 'text-red-600' : 'text-green-600'}`}>
+                  {avatarMessage}
+                </p>
+              )}
             </div>
           </div>
 
@@ -505,20 +703,31 @@ export default function SettingsPage() {
 
             {isFreeTier && (
               <div className={`${freeTierUsage >= freeTierLimit ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'} border rounded-lg p-4`}>
-                <p className={`text-sm ${freeTierUsage >= freeTierLimit ? 'text-red-800' : 'text-orange-800'}`}>
-                  <strong>🎁 無料枠を利用中</strong>（1日{freeTierLimit}回まで）<br />
-                  {freeTierUsage >= freeTierLimit ? (
-                    <>
-                      <span className="font-bold text-red-900">本日の無料枠を使い切りました。</span><br />
-                      独自のGemini APIキーを設定すると、今すぐ無制限でご利用いただけます。
-                    </>
-                  ) : (
-                    <>
-                      本日の使用回数: <strong>{freeTierUsage}/{freeTierLimit}回</strong><br />
-                      独自のGemini APIキーを設定すると、無制限でご利用いただけます。
-                    </>
-                  )}
-                </p>
+                <div className="flex items-start justify-between gap-4">
+                  <p className={`text-sm ${freeTierUsage >= freeTierLimit ? 'text-red-800' : 'text-orange-800'} flex-1`}>
+                    <strong>🎁 無料枠を利用中</strong>（1日{freeTierLimit}回まで）<br />
+                    {freeTierUsage >= freeTierLimit ? (
+                      <>
+                        <span className="font-bold text-red-900">本日の無料枠を使い切りました。</span><br />
+                        独自のGemini APIキーを設定すると、今すぐ無制限でご利用いただけます。
+                      </>
+                    ) : (
+                      <>
+                        本日の使用回数: <strong>{freeTierUsage}/{freeTierLimit}回</strong><br />
+                        独自のGemini APIキーを設定すると、無制限でご利用いただけます。
+                      </>
+                    )}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={refreshUsage}
+                    disabled={loadingUsage}
+                    className="flex-shrink-0"
+                  >
+                    {loadingUsage ? '更新中...' : '更新'}
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -534,9 +743,24 @@ export default function SettingsPage() {
               <p className="text-xs text-gray-500">
                 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a> から取得
               </p>
-              {geminiApiKey && (
+              {geminiApiKey && apiKeySaveStatus === 'saving' && (
+                <p className="text-xs text-blue-600">
+                  💾 保存中...
+                </p>
+              )}
+              {geminiApiKey && apiKeySaveStatus === 'saved' && (
                 <p className="text-xs text-green-600">
-                  ✓ APIキーが設定されています（変更は自動的に保存されます）
+                  ✓ APIキーを保存しました
+                </p>
+              )}
+              {apiKeySaveStatus === 'error' && (
+                <p className="text-xs text-red-600">
+                  ✗ 保存に失敗しました
+                </p>
+              )}
+              {geminiApiKey && !apiKeySaveStatus && (
+                <p className="text-xs text-gray-600">
+                  ✓ APIキーが設定されています
                 </p>
               )}
             </div>
