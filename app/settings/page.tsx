@@ -4,12 +4,13 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getUserSettings, upsertUserSettings } from '@/lib/user-settings'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronDown, ChevronUp, Fingerprint, Trash2, Pencil, Camera } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Fingerprint, Trash2, Pencil, Camera, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { systemPrompt, imageSystemPrompt, videoSystemPrompt } from '@/lib/ai'
 import { Avatar } from '@/components/ui/avatar'
 import { uploadAvatarFile, deleteAvatar } from '@/lib/avatar'
@@ -66,6 +67,15 @@ export default function SettingsPage() {
   const [editingPasskeyName, setEditingPasskeyName] = useState('')
   const [userEmail, setUserEmail] = useState('')
 
+  // Twitter認証状態
+  const [isTwitterLogin, setIsTwitterLogin] = useState(false)
+  const [twitterUsername, setTwitterUsername] = useState<string | null>(null)
+
+  // アカウント削除
+  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
+
   // 無料枠の使用状況
   const [freeTierUsage, setFreeTierUsage] = useState<number>(0)
   const [freeTierLimit, setFreeTierLimit] = useState<number>(10)
@@ -88,6 +98,15 @@ export default function SettingsPage() {
       }
       setUserId(user.id)
       setUserEmail(user.email || '')
+
+      // Twitter認証状態をチェック
+      const identities = user.identities || []
+      const twitterIdentity = identities.find(id => id.provider === 'twitter')
+      if (twitterIdentity) {
+        setIsTwitterLogin(true)
+        setTwitterUsername(user.user_metadata?.user_name || user.user_metadata?.name || null)
+      }
+
       loadSettings(user.id)
 
       // パスキーの可用性をチェック
@@ -437,6 +456,42 @@ export default function SettingsPage() {
 
     setTimeout(() => setAvatarMessage(''), 3000)
     setAvatarUploading(false)
+  }
+
+  // Account delete handler
+  const handleDeleteAccount = async () => {
+    if (!userId) return
+    if (deleteConfirmText !== '削除') {
+      return
+    }
+
+    setIsDeleting(true)
+
+    try {
+      // アカウント削除APIを呼び出す
+      const response = await fetch('/api/auth/delete-account', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        // ログアウトしてログインページにリダイレクト
+        await supabase.auth.signOut()
+        router.push('/login?deleted=true')
+      } else {
+        const data = await response.json()
+        alert(`アカウント削除に失敗しました: ${data.error || '不明なエラー'}`)
+      }
+    } catch (error) {
+      console.error('Account deletion error:', error)
+      alert('アカウント削除中にエラーが発生しました')
+    } finally {
+      setIsDeleting(false)
+      setDeleteDialogOpen(false)
+      setDeleteConfirmText('')
+    }
   }
 
   // `handleDisplaySave`, `displaySaving`, `displayMessage` はサイドバー設定削除に伴い不要
@@ -898,8 +953,25 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* アカウント情報 */}
+        {isTwitterLogin && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-12">
+            <div className="flex items-center gap-2 mb-2">
+              <svg className="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+              <h3 className="text-sm font-semibold text-blue-900">Twitter連携中</h3>
+            </div>
+            {twitterUsername && (
+              <p className="text-sm text-blue-800">
+                @{twitterUsername} でログイン中です
+              </p>
+            )}
+          </div>
+        )}
+
         {/* ログアウト */}
-        <div className="mt-8 mb-8 pb-8 border-t pt-8">
+        <div className="mt-8 mb-8 pb-8 border-t pt-8 space-y-4">
           <Button
             variant="destructive"
             onClick={async () => {
@@ -912,7 +984,75 @@ export default function SettingsPage() {
           >
             ログアウト
           </Button>
+
+          {/* アカウント削除ボタン */}
+          <Button
+            variant="outline"
+            onClick={() => setDeleteDialogOpen(true)}
+            className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            アカウントを削除
+          </Button>
         </div>
+
+        {/* アカウント削除確認ダイアログ */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                アカウント削除の確認
+              </DialogTitle>
+              <DialogDescription className="space-y-3 pt-4">
+                <p className="font-semibold text-gray-900">
+                  この操作は取り消すことができません。
+                </p>
+                <p className="text-sm text-gray-700">
+                  アカウントを削除すると、以下のデータが完全に削除されます：
+                </p>
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 ml-2">
+                  <li>すべてのメモとレシピ</li>
+                  <li>すべてのページとカテゴリ</li>
+                  <li>ユーザー設定とプロフィール情報</li>
+                  <li>パスキー情報</li>
+                </ul>
+                <p className="text-sm text-gray-700 pt-2">
+                  削除を実行するには、下のボックスに「<span className="font-semibold">削除</span>」と入力してください。
+                </p>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                placeholder="削除"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                className="text-center font-semibold"
+              />
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteDialogOpen(false)
+                  setDeleteConfirmText('')
+                }}
+                disabled={isDeleting}
+                className="w-full sm:w-auto"
+              >
+                キャンセル
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== '削除' || isDeleting}
+                className="w-full sm:w-auto"
+              >
+                {isDeleting ? '削除中...' : 'アカウントを削除'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
