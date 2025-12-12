@@ -89,13 +89,12 @@ export async function updateRecipeOrder(recipeIds: string[]): Promise<boolean> {
 }
 
 export async function getPublicRecipesByUserPublicId(userPublicId: string): Promise<{ recipes: Recipe[], nickname: string | null } | null> {
-  // Use the secure View to find the user.
-  // This avoids direct access to user_settings which is restricted by RLS.
+  // Use the secure View to find the user profile.
   console.log('[getPublicRecipesByUserPublicId] Looking for public_share_id:', userPublicId)
 
   const { data: userProfile, error: userError } = await supabase
     .from('public_user_profiles')
-    .select('user_id, nickname')
+    .select('nickname')
     .eq('public_share_id', userPublicId)
     .single()
 
@@ -110,11 +109,15 @@ export async function getPublicRecipesByUserPublicId(userPublicId: string): Prom
     return null
   }
 
-  // user_idに紐づく公開レシピを取得
+  // public_share_idに紐づく公開レシピをuser_settings経由で取得
   const { data: recipes, error: recipesError } = await supabase
     .from('recipes')
-    .select('*')
-    .eq('user_id', userProfile.user_id)
+    .select(`
+      *,
+      user_settings!inner(public_share_id, are_recipes_public)
+    `)
+    .eq('user_settings.public_share_id', userPublicId)
+    .eq('user_settings.are_recipes_public', true)
     .order('display_order', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
 
@@ -123,7 +126,10 @@ export async function getPublicRecipesByUserPublicId(userPublicId: string): Prom
     return null
   }
 
-  return { recipes, nickname: userProfile.nickname }
+  // user_settingsの情報を除去してRecipe型に整形
+  const cleanRecipes = recipes?.map(({ user_settings, ...recipe }) => recipe as Recipe) || []
+
+  return { recipes: cleanRecipes, nickname: userProfile.nickname }
 }
 
 export async function getPublicRecipesByPageShareId(pageShareId: string): Promise<{ recipes: Recipe[], pageName: string, nickname: string | null } | null> {
