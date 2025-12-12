@@ -239,7 +239,12 @@ function LoginComponent() {
       console.log('新規登録結果:', { data, error })
 
       if (error) {
-        setError(error.message)
+        // メールアドレス重複エラーの場合、分かりやすいメッセージを表示
+        if (error.message.includes('already registered') || error.message.includes('User already registered')) {
+          setError('このメールアドレスは既に登録されています。ログインしてください。Twitterアカウントと連携している場合は、Twitterでログインしてください。')
+        } else {
+          setError(error.message)
+        }
       } else if (data.user && !data.session) {
         setError('確認メールを送信しました。メールを確認してください。')
       } else if (data.user) {
