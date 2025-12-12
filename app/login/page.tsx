@@ -23,7 +23,7 @@ function LoginComponent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [nickname, setNickname] = useState('')
-  const [isSignupMode, setIsSignupMode] = useState(false)
+  const [isSignupMode, setIsSignupMode] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -74,7 +74,7 @@ function LoginComponent() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'twitter',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback-client`,
       },
     })
 
@@ -91,22 +91,49 @@ function LoginComponent() {
     setError('')
 
     try {
+      // パスキーで認証
       const result = await authenticateWithPasskey()
 
-      if (!result.success) {
+      if (!result.success || !result.credentialId) {
         setError(result.error || 'パスキー認証に失敗しました')
         setLoading(false)
         return
       }
 
-      // Supabaseでユーザー情報を取得してセッションを作成
-      // 注: Supabaseはパスキー認証を直接サポートしていないため、
-      // 一時的なトークンやカスタムエンドポイントが必要です
-      // ここでは簡易的にuser_idを使ってログイン状態を管理します
+      // サーバー側のAPIを呼び出してトークンを取得
+      const response = await fetch('/api/auth/passkey-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          credentialId: result.credentialId,
+        }),
+      })
 
-      // セキュアな実装のためには、サーバー側でトークンを発行する必要があります
-      setError('パスキー認証は現在開発中です。通常のログインをご利用ください。')
-      setLoading(false)
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        setError(data.error || 'パスキーログインに失敗しました')
+        setLoading(false)
+        return
+      }
+
+      // トークンを使ってSupabaseのセッションを設定
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.accessToken,
+        refresh_token: data.refreshToken,
+      })
+
+      if (sessionError) {
+        console.error('セッション設定エラー:', sessionError)
+        setError('セッションの設定に失敗しました')
+        setLoading(false)
+        return
+      }
+
+      // ログイン成功
+      router.push('/recipes')
     } catch (err) {
       console.error('パスキーログインエラー:', err)
       setError('パスキーログインに失敗しました')
@@ -317,22 +344,20 @@ function LoginComponent() {
             <CardTitle className="text-center">{isSignupMode ? '新規登録' : 'ログイン'}</CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Twitter OAuth ログインボタン（ログインモード時のみ） */}
-            {!isSignupMode && (
-              <div className="mb-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleTwitterLogin}
-                  disabled={loading}
-                  className="w-full border-2 border-blue-400 text-blue-600 hover:bg-blue-50"
-                  size="lg"
-                >
-                  <TwitterIcon className="h-5 w-5 mr-2" />
-                  Twitterでログイン
-                </Button>
-              </div>
-            )}
+            {/* Twitter OAuth ボタン */}
+            <div className="mb-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleTwitterLogin}
+                disabled={loading}
+                className="w-full border-2 border-blue-400 text-blue-600 hover:bg-blue-50"
+                size="lg"
+              >
+                <TwitterIcon className="h-5 w-5 mr-2" />
+                {isSignupMode ? 'Twitterで登録' : 'Twitterでログイン'}
+              </Button>
+            </div>
 
             {/* パスキーログインボタン（ログインモード時のみ） */}
             {!isSignupMode && passkeyAvailable && (
@@ -351,17 +376,15 @@ function LoginComponent() {
               </div>
             )}
 
-            {/* 区切り線（ログインモード時のみ） */}
-            {!isSignupMode && (
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">または</span>
-                </div>
+            {/* 区切り線 */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200"></div>
               </div>
-            )}
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">または</span>
+              </div>
+            </div>
 
             <form className="space-y-6" onSubmit={isSignupMode ? handleSignup : handleLogin}>
               <div className="space-y-4">
@@ -441,7 +464,7 @@ function LoginComponent() {
                   disabled={loading}
                   className="w-full"
                 >
-                  {isSignupMode ? 'ログインに戻る' : '新規登録はこちら'}
+                  {isSignupMode ? 'アカウントをお持ちの方はこちら' : '新規登録はこちら'}
                 </Button>
               </div>
             </form>
