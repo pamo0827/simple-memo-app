@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Eye, EyeOff, Fingerprint } from 'lucide-react'
 import { isPasskeyAvailable, authenticateWithPasskey, registerPasskey } from '@/lib/passkey'
+import { getPages, createPage } from '@/lib/pages'
 
 // Twitter icon SVG component
 function TwitterIcon({ className = "h-5 w-5" }: { className?: string }) {
@@ -254,6 +255,17 @@ function LoginComponent() {
 
         if (settingsError) {
           console.error('設定保存エラー:', settingsError)
+        }
+
+        // デフォルトページを作成
+        try {
+          const pages = await getPages(data.user.id)
+          if (pages.length === 0) {
+            await createPage(data.user.id, 'メイン')
+          }
+        } catch (err) {
+          console.error('デフォルトページ作成エラー:', err)
+          // エラーがあっても登録は続行
         }
 
         console.log('登録成功、リダイレクト中')

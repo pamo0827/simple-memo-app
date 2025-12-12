@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getPages, createPage } from '@/lib/pages'
 
 export default function AuthCallbackClient() {
   const router = useRouter()
@@ -44,6 +45,17 @@ export default function AuthCallbackClient() {
               console.error('アバター処理エラー:', err)
               // エラーがあってもログインは続行
             }
+          }
+
+          // デフォルトページを作成（存在しない場合）
+          try {
+            const pages = await getPages(session.user.id)
+            if (pages.length === 0) {
+              await createPage(session.user.id, 'メイン')
+            }
+          } catch (err) {
+            console.error('デフォルトページ作成エラー:', err)
+            // エラーがあってもログインは続行
           }
 
           // ログイン成功、リダイレクト
