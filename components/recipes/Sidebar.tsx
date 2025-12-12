@@ -3,9 +3,8 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { X, ChevronLeft, ChevronRight, Plus, File, MoreHorizontal, Pencil, Trash2, List } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Plus, File, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
-import type { CategoryHeader } from '@/components/recipes/SortableCategoryHeader'
 import type { Page } from '@/lib/pages'
 import {
   DropdownMenu,
@@ -18,8 +17,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 interface SidebarProps {
   isOpen: boolean
   onToggle: () => void
-  categories: CategoryHeader[]
-  onCategoryClick: (categoryId: string) => void
   pages: Page[]
   currentPageId: string | null
   onPageSelect: (pageId: string) => void
@@ -33,8 +30,6 @@ interface SidebarProps {
 export function Sidebar({
   isOpen,
   onToggle,
-  categories,
-  onCategoryClick,
   pages,
   currentPageId,
   onPageSelect,
@@ -126,28 +121,8 @@ export function Sidebar({
         </ul>
       </div>
 
-      {/* Categories / TOC Section */}
+      {/* Spacer to push content up if needed, or just leave empty */}
       <div className="flex-1 overflow-y-auto p-4">
-        <h2 className="font-bold text-gray-900 text-sm mb-2 flex items-center gap-2">
-          <List className="h-4 w-4" />
-          目次
-        </h2>
-        {categories.length === 0 ? (
-          <p className="text-xs text-gray-400 pl-2">カテゴリーがありません</p>
-        ) : (
-          <ul className="space-y-1">
-            {categories.map(category => (
-              <li key={category.id}>
-                <button
-                  onClick={() => onCategoryClick(category.id)}
-                  className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors text-sm truncate"
-                >
-                  {category.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
     </div>
   )

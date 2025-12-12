@@ -1,14 +1,13 @@
 'use client'
 
-import { useEffect, useState, useMemo, ChangeEvent, useRef } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getRecipes, createRecipe, deleteRecipe, updateRecipe, updateRecipeOrder } from '@/lib/recipes'
 import { getCategories, createCategory as dbCreateCategory, updateCategory as dbUpdateCategory, deleteCategory as dbDeleteCategory } from '@/lib/categories'
 import { getPages, createPage, updatePage, deletePage, updatePageOrder, type Page } from '@/lib/pages'
-import { upsertUserSettings, getUserSettings } from '@/lib/user-settings'
-import type { Recipe, Category } from '@/lib/supabase'
-import { Trash2, Settings, Search, Upload, Plus, GripVertical, CheckSquare, Square, X, Menu, ChevronLeft, ChevronRight, HelpCircle, Share2, Mail } from 'lucide-react'
+import type { Recipe } from '@/lib/supabase'
+import { Trash2, Settings, Search, Upload, Plus, GripVertical, CheckSquare, Square, X, Menu, ChevronLeft, ChevronRight, HelpCircle, Share2, Mail, MoreHorizontal, Pencil, File } from 'lucide-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -24,12 +23,17 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Accordion, AccordionTrigger } from "@/components/ui/accordion"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 import { SortableRecipeItem } from '@/components/recipes/SortableRecipeItem'
 import { SortableCategoryHeader, CategoryHeader } from '@/components/recipes/SortableCategoryHeader'
-import { Sidebar } from '@/components/recipes/Sidebar'
 import { SharePageDialog } from '@/components/recipes/SharePageDialog'
 import { Avatar } from '@/components/ui/avatar'
 import { RecipeItem, ListItem } from '@/types'
@@ -78,14 +82,18 @@ export default function HomePage() {
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [nickname, setNickname] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isShareDialogOpen, setShareDialogOpen] = useState(false)
   const [autoAiSummary, setAutoAiSummary] = useState(true)
+  
+  // Page Dialog States
+  const [isCreateDialogOpen, setCreateDialogOpen] = useState(false)
+  const [isRenameDialogOpen, setRenameDialogOpen] = useState(false)
+  const [newPageName, setNewPageName] = useState('')
+  const [editingPage, setEditingPage] = useState<Page | null>(null)
+
   const router = useRouter()
 
   const { isScraping, scrapeError, bulkProgress, scrapeUrl, scrapeMultipleUrls, scrapeYouTube } = useRecipeScrap()
-
-  const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -136,12 +144,8 @@ export default function HomePage() {
     if (settings) {
       setNickname(settings.nickname)
       setAvatarUrl(settings.avatar_url || null)
-      // Default to true if not set
-      const sidebarVisible = settings.sidebar_visible ?? true
-      setIsSidebarOpen(sidebarVisible)
       setAutoAiSummary(settings.auto_ai_summary ?? true)
     } else {
-      setIsSidebarOpen(true)
       setAutoAiSummary(true)
     }
 
@@ -179,9 +183,6 @@ export default function HomePage() {
     if (!userId || pageId === currentPageId) return
     setCurrentPageId(pageId)
     await loadPageData(userId, pageId)
-    if (window.innerWidth < 768) {
-      setIsSidebarOpen(false)
-    }
   }
 
   const handleCreatePage = async (name: string) => {
@@ -193,11 +194,34 @@ export default function HomePage() {
     }
   }
 
+  const handleCreatePageSubmit = () => {
+    if (newPageName.trim()) {
+      handleCreatePage(newPageName.trim())
+      setNewPageName('')
+      setCreateDialogOpen(false)
+    }
+  }
+
   const handleUpdatePage = async (pageId: string, name: string) => {
     const updated = await updatePage(pageId, { name })
     if (updated) {
       setPages(pages.map(p => p.id === pageId ? updated : p))
     }
+  }
+
+  const handleRenamePageSubmit = () => {
+    if (editingPage && newPageName.trim()) {
+      handleUpdatePage(editingPage.id, newPageName.trim())
+      setNewPageName('')
+      setEditingPage(null)
+      setRenameDialogOpen(false)
+    }
+  }
+
+  const openRenameDialog = (page: Page) => {
+    setEditingPage(page)
+    setNewPageName(page.name)
+    setRenameDialogOpen(true)
   }
 
   const handleDeletePage = async (pageId: string) => {
@@ -212,6 +236,12 @@ export default function HomePage() {
       if (currentPageId === pageId) {
         handlePageSelect(newPages[0].id)
       }
+    }
+  }
+
+  const handleDeletePageClick = (page: Page) => {
+    if (confirm(`ページ「${page.name}」を削除しますか？\n含まれるメモもすべて削除されます。`)) {
+      handleDeletePage(page.id)
     }
   }
 
@@ -321,7 +351,7 @@ export default function HomePage() {
     
     try {
       const recipe = await createRecipe(userId, {
-        name: '新しいメモ',
+        name: 'タイトル',
         ingredients: '',
         instructions: '',
         source_url: undefined,
@@ -384,15 +414,7 @@ export default function HomePage() {
     })
   }, [listItems, searchTerm])
 
-  const scrollToCategory = (categoryId: string) => {
-    const element = categoryRefs.current.get(categoryId)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      if (window.innerWidth < 768) {
-        setIsSidebarOpen(false)
-      }
-    }
-  }
+
 
   if (loading) {
     return (
@@ -404,39 +426,15 @@ export default function HomePage() {
 
   return (
     <div 
-      className="min-h-screen bg-white flex"
+      className="min-h-screen bg-white"
       onDrop={handleDropUrl}
       onDragOver={handleDragOver}
     >
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-        categories={categories}
-        onCategoryClick={scrollToCategory}
-        pages={pages}
-        currentPageId={currentPageId}
-        onPageSelect={handlePageSelect}
-        onCreatePage={handleCreatePage}
-        onUpdatePage={handleUpdatePage}
-        onDeletePage={handleDeletePage}
-        nickname={nickname}
-        avatarUrl={avatarUrl}
-      />
-
       {/* メインコンテンツ */}
       <div className="flex-1 overflow-x-hidden">
         <div className="max-w-4xl mx-auto px-4 py-8">
           <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100">
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="md:hidden hover:bg-gray-50"
-                title="メニュー"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
               {nickname && (
                 <div className="flex items-center gap-2">
                   <Avatar src={avatarUrl} nickname={nickname} size="sm" />
@@ -454,6 +452,55 @@ export default function HomePage() {
                 </>
               )}
             </div>
+          </div>
+
+          {/* ページ一覧 (水平スクロール) */}
+          <div className="flex overflow-x-auto gap-2 mb-6 pb-2 no-scrollbar">
+            {pages.map(page => (
+              <div key={page.id} className="group relative flex-shrink-0">
+                <Button
+                  variant={currentPageId === page.id ? "secondary" : "ghost"}
+                  onClick={() => handlePageSelect(page.id)}
+                  className={`rounded-full px-4 h-10 ${
+                    currentPageId === page.id 
+                      ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' 
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <File className="h-4 w-4 mr-2" />
+                  <span className="truncate max-w-[120px]">{page.name}</span>
+                </Button>
+                
+                <div className="absolute top-1 right-1">
+                   <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200/50">
+                        <MoreHorizontal className="h-4 w-4 text-gray-500" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openRenameDialog(page); }}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        名前を変更
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeletePageClick(page); }} className="text-red-600 focus:text-red-600">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        削除
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="icon"
+              className="rounded-full h-10 w-10 flex-shrink-0 border-dashed border-gray-300 hover:border-amber-400 hover:text-amber-600"
+              onClick={() => setCreateDialogOpen(true)}
+              title="新しいページを作成"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
           </div>
 
         {isSelectionMode && (
@@ -498,13 +545,6 @@ export default function HomePage() {
                         isSelectionMode={isSelectionMode}
                         isSelected={selectedIds.has(item.id)}
                         onToggleSelect={toggleItemSelection}
-                        categoryRef={(el) => {
-                          if (el) {
-                            categoryRefs.current.set(item.id, el)
-                          } else {
-                            categoryRefs.current.delete(item.id)
-                          }
-                        }}
                       />
                     )
                   } else {
@@ -611,6 +651,50 @@ export default function HomePage() {
         pageId={currentPageId}
         pageName={pages.find(p => p.id === currentPageId)?.name || 'ページ'}
       />
+
+      {/* Create Page Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新しいページを作成</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="ページ名"
+              value={newPageName}
+              onChange={(e) => setNewPageName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreatePageSubmit()}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>キャンセル</Button>
+            <Button onClick={handleCreatePageSubmit}>作成</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Page Dialog */}
+      <Dialog open={isRenameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ページ名の変更</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="ページ名"
+              value={newPageName}
+              onChange={(e) => setNewPageName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleRenamePageSubmit()}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>キャンセル</Button>
+            <Button onClick={handleRenamePageSubmit}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
