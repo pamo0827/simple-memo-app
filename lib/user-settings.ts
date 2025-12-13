@@ -60,11 +60,16 @@ export async function upsertUserSettings(
     supabase = clientOrUserId as SupabaseClient
     uid = userIdOrSettings as string
     dataToUpsert = settings
+    console.log('upsertUserSettings: Using provided client')
   } else {
     // Called with (userId, settings) - Legacy
     uid = clientOrUserId as string
     dataToUpsert = userIdOrSettings
+    console.log('upsertUserSettings: Using default client')
   }
+
+  console.log('upsertUserSettings: Upserting for user:', uid)
+  console.log('upsertUserSettings: Data keys:', Object.keys(dataToUpsert))
 
   const { data, error } = await supabase
     .from('user_settings')
@@ -80,9 +85,11 @@ export async function upsertUserSettings(
     .select()
 
   if (error) {
-    console.error('Settings upsert error:', error)
+    console.error('upsertUserSettings: Upsert error:', error)
+    console.error('upsertUserSettings: Error details:', JSON.stringify(error))
     return false
   }
 
+  console.log('upsertUserSettings: Success, rows affected:', data?.length || 0)
   return true
 }

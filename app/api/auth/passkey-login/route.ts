@@ -45,14 +45,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    console.log('Passkey Login: User found:', user.id, 'Email:', user.email)
+
     // マジックリンクトークンを生成
+    console.log('Passkey Login: Generating magic link for email:', user.email)
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
       email: user.email,
     })
 
+    if (linkError) {
+      console.error('Passkey Login: Token generation error:', linkError)
+      console.error('Passkey Login: Error details:', JSON.stringify(linkError))
+    }
+
+    if (!linkData) {
+      console.error('Passkey Login: No link data returned')
+    } else {
+      console.log('Passkey Login: Link data received, has action_link:', !!linkData.properties?.action_link)
+    }
+
     if (linkError || !linkData) {
-      console.error('トークン生成エラー:', linkError)
       return NextResponse.json(
         { error: 'トークンの生成に失敗しました' },
         { status: 500 }

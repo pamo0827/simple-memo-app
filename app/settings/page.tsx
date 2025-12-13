@@ -525,27 +525,47 @@ export default function SettingsPage() {
     setApiKeysSaving(true)
     setApiKeysMessage('')
 
-    // 無料枠の場合はカスタムプロンプトを強制的にnullにする
-    const finalCustomPrompt = isFreeTier ? null : (customPrompt.trim() || null)
+    try {
+      console.log('Settings: Starting API key save')
 
-    const success = await upsertUserSettings(supabase, userId, {
-      gemini_api_key: geminiApiKey,
-      ai_summary_enabled: aiSummaryEnabled,
-      auto_ai_summary: autoAiSummary,
-      custom_prompt: finalCustomPrompt,
-      summary_length: summaryLength,
-    })
-    if (success) {
-      setApiKeysMessage('AI設定を保存しました')
-      // 無料枠の場合、保存後にカスタムプロンプトをクリア
-      if (isFreeTier && customPrompt) {
-        setCustomPrompt('')
+      // 無料枠の場合はカスタムプロンプトを強制的にnullにする
+      const finalCustomPrompt = isFreeTier ? null : (customPrompt.trim() || null)
+
+      console.log('Settings: Calling upsertUserSettings with data:', {
+        gemini_api_key: geminiApiKey ? '***' : null,
+        ai_summary_enabled: aiSummaryEnabled,
+        auto_ai_summary: autoAiSummary,
+        custom_prompt: finalCustomPrompt ? '***' : null,
+        summary_length: summaryLength,
+      })
+
+      const success = await upsertUserSettings(supabase, userId, {
+        gemini_api_key: geminiApiKey,
+        ai_summary_enabled: aiSummaryEnabled,
+        auto_ai_summary: autoAiSummary,
+        custom_prompt: finalCustomPrompt,
+        summary_length: summaryLength,
+      })
+
+      console.log('Settings: upsertUserSettings result:', success)
+
+      if (success) {
+        setApiKeysMessage('AI設定を保存しました')
+        // 無料枠の場合、保存後にカスタムプロンプトをクリア
+        if (isFreeTier && customPrompt) {
+          setCustomPrompt('')
+        }
+      } else {
+        console.error('Settings: Save failed - upsertUserSettings returned false')
+        setApiKeysMessage('保存に失敗しました')
       }
-    } else {
-      setApiKeysMessage('保存に失敗しました')
+    } catch (error) {
+      console.error('Settings: Exception during API key save:', error)
+      setApiKeysMessage('保存中にエラーが発生しました: ' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setTimeout(() => setApiKeysMessage(''), 3000)
+      setApiKeysSaving(false)
     }
-    setTimeout(() => setApiKeysMessage(''), 3000)
-    setApiKeysSaving(false)
   }
 
   if (loading) {
