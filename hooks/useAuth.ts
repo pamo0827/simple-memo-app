@@ -102,7 +102,12 @@ export function useAuth() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` }
+        options: {
+          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+          data: {
+            nickname: nickname
+          }
+        }
       })
 
       if (error) {
@@ -118,7 +123,7 @@ export function useAuth() {
       }
 
       if (data.user) {
-        await supabase.from('user_settings').insert([{ user_id: data.user.id, nickname: nickname || null }])
+        // user_settings insert is now handled by server-side callback using metadata
         try {
           // Note: getPages might rely on global supabase. We should update getPages if possible or pass client.
           // For now, let's assume simple fetches might work if RLS allows public or if global client still has some token.
