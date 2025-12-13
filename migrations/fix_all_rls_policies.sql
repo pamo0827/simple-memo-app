@@ -1,5 +1,12 @@
 -- RLSポリシーとStorage権限を修正・再設定する包括的なスクリプト
 
+-- 0. Storage Bucket 'avatars' の確実な作成とPublic設定
+-- バケットが存在しない場合は作成し、存在する場合はpublic設定をtrueにする
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO UPDATE
+SET public = true;
+
 -- 1. user_settings テーブルのRLS修正
 ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 
