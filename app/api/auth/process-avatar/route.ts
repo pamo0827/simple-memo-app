@@ -100,16 +100,34 @@ export async function POST(request: NextRequest) {
 
     console.log('Nickname found:', nickname)
 
-    // ユーザー設定を更新
+    // 既存のユーザー設定を確認
+    const { data: existingSettings } = await supabase
+      .from('user_settings')
+      .select('nickname, avatar_url')
+      .eq('user_id', user.id)
+      .single()
+
+    console.log('Existing settings:', existingSettings)
+
+    // ユーザー設定を更新（既存の設定を保持）
+    const updateData: any = {
+      user_id: user.id,
+      avatar_url: result.avatarUrl,
+      avatar_provider: 'twitter',
+      avatar_storage_path: result.storagePath,
+    }
+
+    // ニックネームは、既存の設定がない場合のみ更新
+    if (!existingSettings?.nickname && nickname) {
+      updateData.nickname = nickname
+      console.log('Setting nickname from Twitter:', nickname)
+    } else {
+      console.log('Preserving existing nickname:', existingSettings?.nickname)
+    }
+
     const { error: settingsError } = await supabase
       .from('user_settings')
-      .upsert({
-        user_id: user.id,
-        avatar_url: result.avatarUrl,
-        avatar_provider: 'twitter',
-        avatar_storage_path: result.storagePath,
-        nickname: nickname,
-      }, {
+      .upsert(updateData, {
         onConflict: 'user_id',
       })
 
