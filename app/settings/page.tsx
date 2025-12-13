@@ -271,7 +271,7 @@ export default function SettingsPage() {
 
     setAutoSaving(true)
     try {
-      const success = await upsertUserSettings(userId, settings)
+      const success = await upsertUserSettings(supabase, userId, settings)
       if (success) {
         const now = new Date()
         setLastSaved(`${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}に保存`)
@@ -328,7 +328,7 @@ export default function SettingsPage() {
 
     debounceTimer.current = setTimeout(async () => {
       try {
-        const success = await upsertUserSettings(userId, { gemini_api_key: geminiApiKey })
+        const success = await upsertUserSettings(supabase, userId, { gemini_api_key: geminiApiKey })
 
         if (success) {
           setApiKeySaveStatus('saved')
@@ -359,7 +359,7 @@ export default function SettingsPage() {
 
     setNicknameSaving(true)
     setNicknameMessage('')
-    const success = await upsertUserSettings(userId, { nickname })
+    const success = await upsertUserSettings(supabase, userId, { nickname })
     if (success) {
       setNicknameMessage('ニックネームを更新しました')
     } else {
@@ -406,7 +406,7 @@ export default function SettingsPage() {
     const result = await uploadAvatarFile(supabase, userId, file)
 
     if (result.success) {
-      const success = await upsertUserSettings(userId, {
+      const success = await upsertUserSettings(supabase, userId, {
         avatar_url: result.avatarUrl,
         avatar_provider: 'manual',
         avatar_storage_path: result.storagePath,
@@ -439,7 +439,7 @@ export default function SettingsPage() {
     const deleted = await deleteAvatar(supabase, avatarStoragePath)
 
     if (deleted) {
-      const success = await upsertUserSettings(userId, {
+      const success = await upsertUserSettings(supabase, userId, {
         avatar_url: null,
         avatar_provider: null,
         avatar_storage_path: null,
@@ -527,7 +527,7 @@ export default function SettingsPage() {
     // 無料枠の場合はカスタムプロンプトを強制的にnullにする
     const finalCustomPrompt = isFreeTier ? null : (customPrompt.trim() || null)
 
-    const success = await upsertUserSettings(userId, {
+    const success = await upsertUserSettings(supabase, userId, {
       gemini_api_key: geminiApiKey,
       ai_summary_enabled: aiSummaryEnabled,
       auto_ai_summary: autoAiSummary,
