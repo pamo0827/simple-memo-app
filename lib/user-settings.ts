@@ -6,7 +6,6 @@ export async function getUserSettings(userId: string, supabaseClient?: SupabaseC
   // フロントエンド環境（ブラウザ）では必ずAPIを使う
   if (typeof window !== 'undefined') {
     try {
-      console.log('getUserSettings: Calling API')
       const response = await fetch('/api/user/settings', {
         method: 'GET',
         headers: {
@@ -20,7 +19,6 @@ export async function getUserSettings(userId: string, supabaseClient?: SupabaseC
       }
 
       const data = await response.json()
-      console.log('getUserSettings: API Success', data.settings ? 'Found' : 'Not found')
       return data.settings as UserSettings | null
     } catch (error) {
       console.error('getUserSettings: API Exception', error)
@@ -90,8 +88,6 @@ export async function upsertUserSettings(
     dataToUpsert = userIdOrSettings
   }
 
-  console.log('upsertUserSettings: Upserting for user:', uid)
-
   try {
     // API経由で保存（RLS回避のため）
     const response = await fetch('/api/user/settings', {
@@ -106,10 +102,7 @@ export async function upsertUserSettings(
 
     if (!response.ok) {
       const errorData = await response.json()
-      console.error('upsertUserSettings: API Error:', errorData)
-
       // フォールバック: APIが失敗した場合は直接Supabaseを試す
-      console.log('upsertUserSettings: Falling back to direct Supabase call')
       const { error } = await supabase
         .from('user_settings')
         .upsert(
@@ -129,7 +122,6 @@ export async function upsertUserSettings(
       }
     }
 
-    console.log('upsertUserSettings: Success')
     return true
   } catch (e) {
     console.error('upsertUserSettings: Exception:', e)

@@ -526,18 +526,8 @@ export default function SettingsPage() {
     setApiKeysMessage('')
 
     try {
-      console.log('Settings: Starting API key save')
-
       // 無料枠の場合はカスタムプロンプトを強制的にnullにする
       const finalCustomPrompt = isFreeTier ? null : (customPrompt.trim() || null)
-
-      console.log('Settings: Calling upsertUserSettings with data:', {
-        gemini_api_key: geminiApiKey ? '***' : null,
-        ai_summary_enabled: aiSummaryEnabled,
-        auto_ai_summary: autoAiSummary,
-        custom_prompt: finalCustomPrompt ? '***' : null,
-        summary_length: summaryLength,
-      })
 
       const success = await upsertUserSettings(supabase, userId, {
         gemini_api_key: geminiApiKey,
@@ -546,8 +536,6 @@ export default function SettingsPage() {
         custom_prompt: finalCustomPrompt,
         summary_length: summaryLength,
       })
-
-      console.log('Settings: upsertUserSettings result:', success)
 
       if (success) {
         setApiKeysMessage('AI設定を保存しました')
