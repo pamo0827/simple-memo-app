@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { getUserSettings, upsertUserSettings } from '@/lib/user-settings'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ChevronDown, ChevronUp, Fingerprint, Trash2, Pencil, Camera, AlertTriangle } from 'lucide-react'
@@ -23,6 +23,7 @@ import {
   type PasskeyCredential
 } from '@/lib/passkey'
 export default function SettingsPage() {
+  const supabase = createClientComponentClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { getRecipes, createRecipe, deleteRecipe, updateRecipe, updateRecipeOrder } from '@/lib/recipes'
 import { getCategories, createCategory as dbCreateCategory, updateCategory as dbUpdateCategory, deleteCategory as dbDeleteCategory } from '@/lib/categories'
 import { getPages, createPage, updatePage, deletePage, updatePageOrder, type Page } from '@/lib/pages'
@@ -64,9 +64,10 @@ const extractTitleFromMarkdown = (content: string, fallback: string = 'メモ'):
 }
 
 export default function HomePage() {
+  const supabase = createClientComponentClient()
   const [pages, setPages] = useState<Page[]>([])
   const [currentPageId, setCurrentPageId] = useState<string | null>(null)
-  
+
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [categories, setCategories] = useState<CategoryHeader[]>([])
   const [listItems, setListItems] = useState<ListItem[]>([])
@@ -84,7 +85,7 @@ export default function HomePage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isShareDialogOpen, setShareDialogOpen] = useState(false)
   const [autoAiSummary, setAutoAiSummary] = useState(true)
-  
+
   // Page Dialog States
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false)
   const [isRenameDialogOpen, setRenameDialogOpen] = useState(false)
@@ -104,7 +105,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const order = listOrder || []
-    
+
     const itemsMap = new Map<string, ListItem>()
     categories.forEach(cat => itemsMap.set(cat.id, { ...cat, type: 'category' }))
     recipes.forEach(recipe => itemsMap.set(recipe.id, { ...recipe, type: 'recipe' }))
@@ -168,14 +169,14 @@ export default function HomePage() {
       getRecipes(uid, pageId),
       getCategories(uid, pageId)
     ])
-    
+
     // Get current page's order
     const currentPage = pages.find(p => p.id === pageId) || await getPages(uid).then(ps => ps.find(p => p.id === pageId))
-    
+
     setRecipes(recipeData)
     setCategories(categoryData.map(c => ({ ...c, type: 'category' })))
     setListOrder(currentPage?.list_order || [])
-    
+
     setLoading(false)
   }
 
@@ -280,7 +281,7 @@ export default function HomePage() {
       // Update local pages state to reflect order change
       setPages(pages.map(p => p.id === currentPageId ? { ...p, list_order: newOrder } : p))
     }
-    
+
     const recipeIds = newListItems.filter(item => item.type === 'recipe').map(item => item.id)
     await updateRecipeOrder(recipeIds)
   }
@@ -336,7 +337,7 @@ export default function HomePage() {
 
     const recipeDeletePromises = recipeIdsToDelete.map(id => deleteRecipe(id))
     const categoryDeletePromises = categoryIdsToDelete.map(id => dbDeleteCategory(id))
-    
+
     await Promise.all([...recipeDeletePromises, ...categoryDeletePromises])
 
     setRecipes(recipes.filter(r => !selectedIds.has(r.id)))
@@ -348,7 +349,7 @@ export default function HomePage() {
   const handleCreateEmptyMemo = async () => {
     if (!userId || !currentPageId) return
     setMenuOpen(false)
-    
+
     try {
       const recipe = await createRecipe(userId, {
         name: 'タイトル',
@@ -356,7 +357,7 @@ export default function HomePage() {
         instructions: '',
         source_url: undefined,
       }, currentPageId)
-      
+
       if (recipe) {
         setRecipes([recipe, ...recipes])
       }
@@ -367,19 +368,19 @@ export default function HomePage() {
 
   const handleDropUrl = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    e.stopPropagation(); 
-    
+    e.stopPropagation();
+
     if (!userId || !currentPageId) return;
 
     const url = e.dataTransfer.getData('text/plain');
     if (!url || !url.startsWith('http')) {
-        alert('無効なURLがドロップされました。');
-        return;
+      alert('無効なURLがドロップされました。');
+      return;
     }
 
     try {
       const recipe = await createRecipe(userId, {
-        name: '新しいメモ', 
+        name: '新しいメモ',
         ingredients: '',
         instructions: '',
         source_url: url,
@@ -396,7 +397,7 @@ export default function HomePage() {
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); 
+    e.preventDefault();
     e.stopPropagation();
   };
 
@@ -425,7 +426,7 @@ export default function HomePage() {
   }
 
   return (
-    <div 
+    <div
       className="min-h-screen bg-white"
       onDrop={handleDropUrl}
       onDragOver={handleDragOver}
@@ -461,18 +462,17 @@ export default function HomePage() {
                 <Button
                   variant={currentPageId === page.id ? "secondary" : "ghost"}
                   onClick={() => handlePageSelect(page.id)}
-                  className={`rounded-full px-4 h-10 ${
-                    currentPageId === page.id 
-                      ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' 
+                  className={`rounded-full px-4 h-10 ${currentPageId === page.id
+                      ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
                       : 'text-gray-600 hover:bg-gray-100'
-                  }`}
+                    }`}
                 >
                   <File className="h-4 w-4 mr-2" />
                   <span className="truncate max-w-[120px]">{page.name}</span>
                 </Button>
-                
+
                 <div className="absolute top-1 right-1">
-                   <DropdownMenu>
+                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200/50">
                         <MoreHorizontal className="h-4 w-4 text-gray-500" />
@@ -503,106 +503,106 @@ export default function HomePage() {
             </Button>
           </div>
 
-        {isSelectionMode && (
-          <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <div className="flex items-center gap-2">
-              <span className="fluid-text-sm font-medium text-amber-900">{selectedIds.size}件選択中</span>
-              <Button variant="ghost" size="sm" onClick={selectAll} className="h-8">全選択</Button>
-              <Button variant="ghost" size="sm" onClick={deselectAll} className="h-8">選択解除</Button>
+          {isSelectionMode && (
+            <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div className="flex items-center gap-2">
+                <span className="fluid-text-sm font-medium text-amber-900">{selectedIds.size}件選択中</span>
+                <Button variant="ghost" size="sm" onClick={selectAll} className="h-8">全選択</Button>
+                <Button variant="ghost" size="sm" onClick={deselectAll} className="h-8">選択解除</Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="destructive" size="sm" onClick={deleteSelected} disabled={selectedIds.size === 0} className="h-8 px-3">
+                  <Trash2 className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">削除</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={toggleSelectionMode} className="h-8 px-3">
+                  <X className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">キャンセル</span>
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="destructive" size="sm" onClick={deleteSelected} disabled={selectedIds.size === 0} className="h-8 px-3">
-                <Trash2 className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">削除</span>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={toggleSelectionMode} className="h-8 px-3">
-                <X className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">キャンセル</span>
-              </Button>
-            </div>
-          </div>
-        )}
+          )}
 
-        {filteredListItems.length === 0 ? (
-          <Card className="border-gray-200 shadow-sm">
-            <CardContent className="text-center py-20">
-              <img src="/sleep2_memotto.png" alt="メモがありません" className="w-48 h-auto mx-auto mb-8" />
-              <p className="text-gray-500 fluid-text-lg mb-2 font-medium">{searchTerm ? '一致するメモがありません' : 'メモがありません'}</p>
-              <p className="text-gray-400 fluid-text-sm">{searchTerm ? '検索ワードを変えてみてください' : '右下の「＋」ボタンから追加してみましょう'}</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <SortableContext items={filteredListItems.map(item => item.id)} strategy={verticalListSortingStrategy}>
-              <Accordion type="single" collapsible className="w-full space-y-4">
-                {filteredListItems.map((item) => {
+          {filteredListItems.length === 0 ? (
+            <Card className="border-gray-200 shadow-sm">
+              <CardContent className="text-center py-20">
+                <img src="/sleep2_memotto.png" alt="メモがありません" className="w-48 h-auto mx-auto mb-8" />
+                <p className="text-gray-500 fluid-text-lg mb-2 font-medium">{searchTerm ? '一致するメモがありません' : 'メモがありません'}</p>
+                <p className="text-gray-400 fluid-text-sm">{searchTerm ? '検索ワードを変えてみてください' : '右下の「＋」ボタンから追加してみましょう'}</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+              <SortableContext items={filteredListItems.map(item => item.id)} strategy={verticalListSortingStrategy}>
+                <Accordion type="single" collapsible className="w-full space-y-4">
+                  {filteredListItems.map((item) => {
+                    if (item.type === 'category') {
+                      return (
+                        <SortableCategoryHeader
+                          key={item.id}
+                          category={item}
+                          onEdit={handleEditCategory}
+                          isSelectionMode={isSelectionMode}
+                          isSelected={selectedIds.has(item.id)}
+                          onToggleSelect={toggleItemSelection}
+                        />
+                      )
+                    } else {
+                      const faviconUrl = item.source_url ? getFaviconUrl(item.source_url) : null
+                      return (
+                        <SortableRecipeItem
+                          key={item.id}
+                          recipe={item}
+                          faviconUrl={faviconUrl}
+                          isSelectionMode={isSelectionMode}
+                          isSelected={selectedIds.has(item.id)}
+                          onToggleSelect={toggleItemSelection}
+                          onUpdateRecipe={handleRecipeUpdate}
+                        />
+                      )
+                    }
+                  })}
+                </Accordion>
+              </SortableContext>
+              <DragOverlay>
+                {activeId ? (() => {
+                  const item = listItems.find(i => i.id === activeId)
+                  if (!item) return null
                   if (item.type === 'category') {
                     return (
-                      <SortableCategoryHeader
-                        key={item.id}
-                        category={item}
-                        onEdit={handleEditCategory}
-                        isSelectionMode={isSelectionMode}
-                        isSelected={selectedIds.has(item.id)}
-                        onToggleSelect={toggleItemSelection}
-                      />
+                      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 rounded-lg px-3 py-1.5 flex items-center justify-between shadow-lg">
+                        <div className="flex items-center gap-2 flex-1">
+                          <GripVertical className="h-4 w-4 text-amber-600" />
+                          <h2 className="fluid-text-sm font-bold text-amber-900">{item.name}</h2>
+                        </div>
+                      </div>
                     )
                   } else {
                     const faviconUrl = item.source_url ? getFaviconUrl(item.source_url) : null
                     return (
-                      <SortableRecipeItem
-                        key={item.id}
-                        recipe={item}
-                        faviconUrl={faviconUrl}
-                        isSelectionMode={isSelectionMode}
-                        isSelected={selectedIds.has(item.id)}
-                        onToggleSelect={toggleItemSelection}
-                        onUpdateRecipe={handleRecipeUpdate}
-                      />
-                    )
-                  }
-                })}
-              </Accordion>
-            </SortableContext>
-            <DragOverlay>
-              {activeId ? (() => {
-                const item = listItems.find(i => i.id === activeId)
-                if (!item) return null
-                if (item.type === 'category') {
-                  return (
-                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 rounded-lg px-3 py-1.5 flex items-center justify-between shadow-lg">
-                      <div className="flex items-center gap-2 flex-1">
-                        <GripVertical className="h-4 w-4 text-amber-600" />
-                        <h2 className="fluid-text-sm font-bold text-amber-900">{item.name}</h2>
-                      </div>
-                    </div>
-                  )
-                } else {
-                  const faviconUrl = item.source_url ? getFaviconUrl(item.source_url) : null
-                  return (
-                    <div className="border border-gray-200 rounded-lg shadow-lg bg-white">
-                      <div className="flex items-center justify-between pr-2">
-                        <div className="flex items-center flex-1">
-                          <div className="px-3 py-4">
-                            <GripVertical className="h-5 w-5 text-gray-400" />
-                          </div>
-                          <div className="flex-1 pr-6 py-4">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              {faviconUrl && (
-                                <img src={faviconUrl} alt="" className="h-6 w-6 rounded flex-shrink-0" />
-                              )}
-                              <span className="fluid-text-base font-semibold text-left truncate line-clamp-1">{item.name}</span>
+                      <div className="border border-gray-200 rounded-lg shadow-lg bg-white">
+                        <div className="flex items-center justify-between pr-2">
+                          <div className="flex items-center flex-1">
+                            <div className="px-3 py-4">
+                              <GripVertical className="h-5 w-5 text-gray-400" />
+                            </div>
+                            <div className="flex-1 pr-6 py-4">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                {faviconUrl && (
+                                  <img src={faviconUrl} alt="" className="h-6 w-6 rounded flex-shrink-0" />
+                                )}
+                                <span className="fluid-text-base font-semibold text-left truncate line-clamp-1">{item.name}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                }
-              })() : null}
-            </DragOverlay>
-          </DndContext>
-        )}
+                    )
+                  }
+                })() : null}
+              </DragOverlay>
+            </DndContext>
+          )}
         </div>
       </div>
 
@@ -613,11 +613,10 @@ export default function HomePage() {
         />
       )}
 
-      <div className={`fixed bottom-24 right-6 flex flex-col gap-3 z-40 transition-all duration-300 ease-in-out ${ 
-        isMenuOpen
+      <div className={`fixed bottom-24 right-6 flex flex-col gap-3 z-40 transition-all duration-300 ease-in-out ${isMenuOpen
           ? 'opacity-100 translate-y-0 pointer-events-auto'
           : 'opacity-0 translate-y-4 pointer-events-none'
-      }`}>
+        }`}>
         <Button
           variant="default"
           className="h-12 px-6 shadow-lg rounded-full transition-transform duration-200 hover:scale-105"

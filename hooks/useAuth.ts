@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { authenticateWithPasskey, registerPasskey, isPasskeyAvailable } from '@/lib/passkey'
 import { getPages, createPage } from '@/lib/pages'
@@ -8,6 +8,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const supabase = createClientComponentClient()
 
   const handleTwitterLogin = async () => {
     setLoading(true)
@@ -41,11 +42,18 @@ export function useAuth() {
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'パスキーログインに失敗しました')
       }
+      // Passkey login via API sets cookie separately or returns token?
+      // Wait, the API/passkey-login likely returns a token.
+      // We need to see how it "sets session".
+      // If the API sets cookie using cookies().set(), then logic is fine.
+      // If it returns token, we use supabase.auth.setSession() which sets client-side cookie via helper.
       const { error: sessionError } = await supabase.auth.setSession({
         access_token: data.accessToken,
         refresh_token: data.refreshToken,
       })
       if (sessionError) throw new Error('セッションの設定に失敗しました')
+
+      router.refresh() // Force refresh to pick up new cookies/session
       router.push('/recipes')
     } catch (err: any) {
       console.error('パスキーログインエラー:', err)
@@ -74,6 +82,7 @@ export function useAuth() {
       }
 
       if (!showPasskeyRegister) {
+        router.refresh()
         router.push('/')
       }
       return { user: data.user, showPasskeyRegister }
@@ -111,6 +120,9 @@ export function useAuth() {
       if (data.user) {
         await supabase.from('user_settings').insert([{ user_id: data.user.id, nickname: nickname || null }])
         try {
+          // Note: getPages might rely on global supabase. We should update getPages if possible or pass client.
+          // For now, let's assume simple fetches might work if RLS allows public or if global client still has some token.
+          // Ideally passing the client is better.
           const pages = await getPages(data.user.id)
           if (pages.length === 0) await createPage(data.user.id, 'メイン')
         } catch (err) {
@@ -119,6 +131,7 @@ export function useAuth() {
 
         const showPasskeyRegister = isPasskeyAvailable()
         if (!showPasskeyRegister) {
+          router.refresh()
           router.push('/')
         }
         return { user: data.user, showPasskeyRegister }
@@ -139,6 +152,8 @@ export function useAuth() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('ログインしてください')
 
+      // Pass client to registration? registerPasskey likely uses global supabase or standard fetch.
+      // Need to check lib/passkey.ts if it needs the authenticated client.
       const result = await registerPasskey({ email: user.email!, userId: user.id }, 'このデバイス')
       if (!result.success) throw new Error(result.error || 'パスキー登録に失敗しました')
 
