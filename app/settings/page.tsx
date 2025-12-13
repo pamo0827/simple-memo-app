@@ -121,7 +121,7 @@ export default function SettingsPage() {
 
   const loadSettings = async (uid: string) => {
     setLoading(true)
-    const settings = await getUserSettings(uid)
+    const settings = await getUserSettings(uid, supabase)
     if (settings) {
       setNickname(settings.nickname || '')
       setAvatarUrl(settings.avatar_url || null)

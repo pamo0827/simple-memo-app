@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { getUserSettings, upsertUserSettings } from '@/lib/user-settings'
 import type { UserSettings } from '@/lib/supabase'
 
@@ -25,6 +26,7 @@ export function useUserSettings(userId: string | null): UseUserSettingsResult {
   const [settings, setSettings] = useState<Partial<UserSettings> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const supabase = createClientComponentClient()
 
   const loadSettings = useCallback(async () => {
     if (!userId) {
@@ -36,7 +38,7 @@ export function useUserSettings(userId: string | null): UseUserSettingsResult {
     setError(null)
 
     try {
-      const data = await getUserSettings(userId)
+      const data = await getUserSettings(userId, supabase)
       setSettings(data)
     } catch (err) {
       console.error('[useUserSettings] Error loading settings:', err)
@@ -44,7 +46,7 @@ export function useUserSettings(userId: string | null): UseUserSettingsResult {
     } finally {
       setLoading(false)
     }
-  }, [userId])
+  }, [userId, supabase])
 
   const updateSettings = useCallback(async (updates: Partial<UserSettings>): Promise<boolean> => {
     if (!userId) return false

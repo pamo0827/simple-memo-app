@@ -2,8 +2,9 @@ import { supabase as defaultClient } from './supabase'
 import type { UserSettings } from './supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export async function getUserSettings(userId: string): Promise<UserSettings | null> {
-  const { data, error } = await defaultClient
+export async function getUserSettings(userId: string, supabaseClient?: SupabaseClient): Promise<UserSettings | null> {
+  const supabase = supabaseClient || defaultClient
+  const { data, error } = await supabase
     .from('user_settings')
     .select('*')
     .eq('user_id', userId)
