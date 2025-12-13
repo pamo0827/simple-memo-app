@@ -1,7 +1,9 @@
-import { supabase } from './supabase'
+import { supabase as defaultClient } from './supabase'
 import type { Recipe, RecipeInput } from './supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-export async function getRecipes(userId: string, pageId?: string): Promise<Recipe[]> {
+export async function getRecipes(userId: string, pageId?: string, client?: SupabaseClient): Promise<Recipe[]> {
+  const supabase = client || defaultClient
   let query = supabase
     .from('recipes')
     .select('*')
@@ -23,7 +25,9 @@ export async function getRecipes(userId: string, pageId?: string): Promise<Recip
   return data || []
 }
 
-export async function createRecipe(userId: string, recipe: RecipeInput, pageId?: string): Promise<Recipe | null> {
+
+export async function createRecipe(userId: string, recipe: RecipeInput, pageId?: string, client?: SupabaseClient): Promise<Recipe | null> {
+  const supabase = client || defaultClient
   const { data, error } = await supabase
     .from('recipes')
     .insert([{ ...recipe, user_id: userId, page_id: pageId }])
@@ -39,7 +43,8 @@ export async function createRecipe(userId: string, recipe: RecipeInput, pageId?:
   return data
 }
 
-export async function deleteRecipe(id: string): Promise<boolean> {
+export async function deleteRecipe(id: string, client?: SupabaseClient): Promise<boolean> {
+  const supabase = client || defaultClient
   const { error } = await supabase
     .from('recipes')
     .delete()
@@ -53,7 +58,8 @@ export async function deleteRecipe(id: string): Promise<boolean> {
   return true
 }
 
-export async function updateRecipe(id: string, updates: Partial<RecipeInput>): Promise<Recipe | null> {
+export async function updateRecipe(id: string, updates: Partial<RecipeInput>, client?: SupabaseClient): Promise<Recipe | null> {
+  const supabase = client || defaultClient
   const { data, error } = await supabase
     .from('recipes')
     .update(updates)
@@ -69,7 +75,8 @@ export async function updateRecipe(id: string, updates: Partial<RecipeInput>): P
   return data
 }
 
-export async function updateRecipeOrder(recipeIds: string[]): Promise<boolean> {
+export async function updateRecipeOrder(recipeIds: string[], client?: SupabaseClient): Promise<boolean> {
+  const supabase = client || defaultClient
   // Update display_order for each recipe
   const updates = recipeIds.map((id, index) => ({
     id,
@@ -92,7 +99,7 @@ export async function getPublicRecipesByUserPublicId(userPublicId: string): Prom
   // Use the secure View to find the user profile.
   console.log('[getPublicRecipesByUserPublicId] Looking for public_share_id:', userPublicId)
 
-  const { data: userProfile, error: userError } = await supabase
+  const { data: userProfile, error: userError } = await defaultClient
     .from('public_user_profiles')
     .select('nickname')
     .eq('public_share_id', userPublicId)
@@ -110,7 +117,7 @@ export async function getPublicRecipesByUserPublicId(userPublicId: string): Prom
   }
 
   // public_share_idに紐づく公開レシピをuser_settings経由で取得
-  const { data: recipes, error: recipesError } = await supabase
+  const { data: recipes, error: recipesError } = await defaultClient
     .from('recipes')
     .select(`
       *,
@@ -127,7 +134,7 @@ export async function getPublicRecipesByUserPublicId(userPublicId: string): Prom
   }
 
   // user_settingsの情報を除去してRecipe型に整形
-  const cleanRecipes = recipes?.map(({ user_settings, ...recipe }) => recipe as Recipe) || []
+  const cleanRecipes = recipes?.map(({ user_settings, ...recipe }: any) => recipe as Recipe) || []
 
   return { recipes: cleanRecipes, nickname: userProfile.nickname }
 }
@@ -136,7 +143,7 @@ export async function getPublicRecipesByPageShareId(pageShareId: string): Promis
   console.log('[getPublicRecipesByPageShareId] Looking for page with public_share_id:', pageShareId)
 
   // ページ情報を取得
-  const { data: page, error: pageError } = await supabase
+  const { data: page, error: pageError } = await defaultClient
     .from('pages')
     .select('id, name, user_id, is_public')
     .eq('public_share_id', pageShareId)
@@ -155,14 +162,14 @@ export async function getPublicRecipesByPageShareId(pageShareId: string): Promis
   }
 
   // ユーザー情報を取得（ニックネーム用）
-  const { data: settings } = await supabase
+  const { data: settings } = await defaultClient
     .from('user_settings')
     .select('nickname')
     .eq('user_id', page.user_id)
     .single()
 
   // ページに紐づくレシピとカテゴリーを取得
-  const { data: recipes, error: recipesError } = await supabase
+  const { data: recipes, error: recipesError } = await defaultClient
     .from('recipes')
     .select('*')
     .eq('page_id', page.id)
