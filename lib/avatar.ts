@@ -1,4 +1,10 @@
-import { supabase } from './supabase'
+// Note: downloadAndStoreAvatar still imports from './supabase' (plain client).
+// This is likely OK if it is used in server-side contexts where auth headers manage permissions or if called with service role key,
+// or if the plain client somehow has session.
+// However, for client-side uploads, we MUST use the authenticated client passed from the component.
+
+import { supabase as defaultClient } from './supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface AvatarUploadResult {
   success: boolean
@@ -30,7 +36,7 @@ export async function downloadAndStoreAvatar(
     const fileName = `${userId}/avatar.${ext}`
 
     // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    const { data, error } = await defaultClient.storage
       .from('avatars')
       .upload(fileName, blob, {
         cacheControl: '3600',
@@ -43,7 +49,7 @@ export async function downloadAndStoreAvatar(
     }
 
     // Get public URL
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = defaultClient.storage
       .from('avatars')
       .getPublicUrl(fileName)
 
@@ -63,6 +69,7 @@ export async function downloadAndStoreAvatar(
  * Validates file type and size before uploading
  */
 export async function uploadAvatarFile(
+  supabase: SupabaseClient,
   userId: string,
   file: File
 ): Promise<AvatarUploadResult> {
@@ -109,7 +116,7 @@ export async function uploadAvatarFile(
 /**
  * Delete avatar from storage
  */
-export async function deleteAvatar(storagePath: string): Promise<boolean> {
+export async function deleteAvatar(supabase: SupabaseClient, storagePath: string): Promise<boolean> {
   try {
     const { error } = await supabase.storage
       .from('avatars')

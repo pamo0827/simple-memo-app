@@ -403,7 +403,7 @@ export default function SettingsPage() {
     setAvatarUploading(true)
     setAvatarMessage('')
 
-    const result = await uploadAvatarFile(userId, file)
+    const result = await uploadAvatarFile(supabase, userId, file)
 
     if (result.success) {
       const success = await upsertUserSettings(userId, {
@@ -436,7 +436,7 @@ export default function SettingsPage() {
     setAvatarUploading(true)
     setAvatarMessage('')
 
-    const deleted = await deleteAvatar(avatarStoragePath)
+    const deleted = await deleteAvatar(supabase, avatarStoragePath)
 
     if (deleted) {
       const success = await upsertUserSettings(userId, {
