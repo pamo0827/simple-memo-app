@@ -75,10 +75,21 @@ export async function GET(request: NextRequest) {
                         console.log('Callback: Twitter API Response:', JSON.stringify(data, null, 2))
 
                         if (data) {
+                            console.log('Callback: Twitter API Data details:', {
+                                name: data.name,
+                                username: data.username,
+                                profile_image_url: data.profile_image_url
+                            })
+
                             if (data.name) {
                                 nickname = data.name
-                                console.log('Callback: Updated nickname from API:', nickname)
+                                console.log('Callback: Updated nickname from API (name):', nickname)
+                            } else if (data.username) {
+                                // nameが万が一空の場合はusernameを使う
+                                nickname = data.username
+                                console.log('Callback: Updated nickname from API (username):', nickname)
                             }
+
                             if (data.profile_image_url) {
                                 // iconUrl.replace('_normal', '') を適用して高解像度化
                                 avatarUrl = data.profile_image_url.replace('_normal', '')
