@@ -109,32 +109,36 @@ export async function GET(request: NextRequest) {
                         console.log('Callback: Skipping Twitter API (no identity or token)')
                     }
 
-                    if (nickname || avatarUrl) {
-                        console.log('Callback: Attempting to upsert user_settings')
-                        const { data: existing } = await supabase
-                            .from('user_settings')
-                            .select('nickname')
-                            .eq('user_id', user.id)
-                            .single()
+                    console.log('Callback: Attempting to upsert user_settings')
+                    const { data: existing } = await supabase
+                        .from('user_settings')
+                        .select('nickname')
+                        .eq('user_id', user.id)
+                        .single()
 
-                        const updateData: any = {
-                            user_id: user.id,
-                            updated_at: new Date().toISOString()
-                        }
-                        if (avatarUrl) updateData.avatar_url = avatarUrl
-                        if (!existing?.nickname && nickname) updateData.nickname = nickname
+                    const updateData: any = {
+                        user_id: user.id,
+                        updated_at: new Date().toISOString()
+                    }
+                    if (avatarUrl) updateData.avatar_url = avatarUrl
 
-                        console.log('Callback: Update data:', JSON.stringify(updateData))
+                    // ニックネームがない場合のフォールバック
+                    if (!nickname) {
+                        const randomId = Math.random().toString(36).substring(2, 10);
+                        nickname = `User-${randomId}`;
+                        console.log('Callback: Generated fallback nickname:', nickname);
+                    }
 
-                        const { error: upsertError } = await supabase.from('user_settings').upsert(updateData, { onConflict: 'user_id' })
+                    if (!existing?.nickname && nickname) updateData.nickname = nickname
 
-                        if (upsertError) {
-                            console.error('Callback: Upsert error:', upsertError)
-                        } else {
-                            console.log('Callback: Successfully updated user_settings')
-                        }
+                    console.log('Callback: Update data:', JSON.stringify(updateData))
+
+                    const { error: upsertError } = await supabase.from('user_settings').upsert(updateData, { onConflict: 'user_id' })
+
+                    if (upsertError) {
+                        console.error('Callback: Upsert error:', upsertError)
                     } else {
-                        console.log('Callback: No nickname or avatarUrl to update')
+                        console.log('Callback: Successfully updated user_settings')
                     }
                 } catch (syncError) {
                     console.error('Callback: Profile sync error (non-fatal):', syncError)
@@ -143,11 +147,10 @@ export async function GET(request: NextRequest) {
             }
         } catch (e) {
             console.error('Callback: Unhandled error during Auth Callback:', e)
-            // Critical fail, maybe redirect to login with error?
-            // For now, redirect to destination anyway as fallback
         }
     }
 
     console.log('Callback: Redirecting to', redirectUrl.toString())
     return NextResponse.redirect(redirectUrl)
 }
+
