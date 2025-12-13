@@ -194,14 +194,16 @@ export async function authenticateWithPasskey(
       .single()
 
     if (error || !passkey) {
+      console.error('Passkey lookup error:', error)
       return { success: false, error: 'パスキーが見つかりません' }
     }
 
-    // 最終使用日時を更新
-    await supabase
-      .from('passkeys')
-      .update({ last_used_at: new Date().toISOString() })
-      .eq('credential_id', credentialId)
+    // Note: last_used_at update is skipped here because this happens before login
+    // The RLS policy would reject the update. Update can be done after successful login if needed.
+    // await supabase
+    //   .from('passkeys')
+    //   .update({ last_used_at: new Date().toISOString() })
+    //   .eq('credential_id', credentialId)
 
     return {
       success: true,
