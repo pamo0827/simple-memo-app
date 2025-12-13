@@ -482,7 +482,17 @@ export default function SettingsPage() {
         router.push('/login?deleted=true')
       } else {
         const data = await response.json()
-        alert(`アカウント削除に失敗しました: ${data.error || '不明なエラー'}`)
+        console.error('削除エラー詳細:', data)
+
+        // 認証エラーの場合は再ログインを促す
+        if (response.status === 401) {
+          if (confirm('セッションが切れています。一度ログアウトして再ログインしてから、もう一度お試しください。\n\nログアウトしますか？')) {
+            await supabase.auth.signOut()
+            router.push('/login')
+          }
+        } else {
+          alert(`アカウント削除に失敗しました: ${data.error || '不明なエラー'}\n\n詳細: ${data.details || 'なし'}`)
+        }
       }
     } catch (error) {
       console.error('Account deletion error:', error)
