@@ -1,6 +1,9 @@
 -- Function to check and increment free tier usage safely
 -- Handles date reset and limit checking atomically
 
+-- First, drop the function if it exists to avoid return type conflict errors
+DROP FUNCTION IF EXISTS increment_free_tier_usage(uuid, integer);
+
 CREATE OR REPLACE FUNCTION increment_free_tier_usage(
   p_user_id UUID,
   p_daily_limit INTEGER
@@ -38,7 +41,6 @@ BEGIN
 
   -- Check if user has own API Key
   IF v_api_key IS NOT NULL AND trim(v_api_key) <> '' THEN
-    -- Update is_using_free_tier to false just in case
     UPDATE user_settings SET is_using_free_tier = false WHERE user_id = p_user_id;
     RETURN QUERY SELECT true, v_api_key, false, 999999, CAST(NULL AS TEXT);
     RETURN;
