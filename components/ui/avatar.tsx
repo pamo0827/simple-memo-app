@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { getDefaultAvatarUrl } from '@/lib/avatar'
 
 interface AvatarProps {
@@ -20,6 +20,10 @@ const sizeClasses = {
 
 export function Avatar({ src, alt, nickname, size = 'md', className = '' }: AvatarProps) {
   const [imageError, setImageError] = useState(false)
+
+  useEffect(() => {
+    setImageError(false)
+  }, [src])
 
   const displaySrc = src && !imageError ? src : getDefaultAvatarUrl(nickname)
   const sizeClass = sizeClasses[size]
