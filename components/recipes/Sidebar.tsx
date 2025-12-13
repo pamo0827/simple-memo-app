@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 
 interface SidebarProps {
   isOpen: boolean
@@ -88,11 +88,10 @@ export function Sidebar({
             <li key={page.id} className="group flex items-center justify-between rounded-lg hover:bg-gray-100 pr-1">
               <button
                 onClick={() => onPageSelect(page.id)}
-                className={`flex-1 text-left px-3 py-2 rounded-lg text-sm truncate transition-colors ${
-                  currentPageId === page.id 
-                    ? 'bg-amber-100 text-amber-900 font-medium' 
-                    : 'text-gray-700 hover:text-gray-900'
-                }`}
+                className={`flex-1 text-left px-3 py-2 rounded-lg text-sm truncate transition-colors ${currentPageId === page.id
+                  ? 'bg-amber-100 text-amber-900 font-medium'
+                  : 'text-gray-700 hover:text-gray-900'
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <File className="h-4 w-4 flex-shrink-0" />
@@ -181,6 +180,9 @@ export function Sidebar({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>新しいページを作成</DialogTitle>
+            <DialogDescription className="sr-only">
+              新しいページの作成フォームです。ページ名を入力してください。
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -203,6 +205,9 @@ export function Sidebar({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>ページ名の変更</DialogTitle>
+            <DialogDescription className="sr-only">
+              ページ名の変更フォームです。新しい名前を入力してください。
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
