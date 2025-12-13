@@ -693,7 +693,106 @@ export default function SettingsPage() {
             </Button>
           </form>
 
+          {/* Passkey Management */}
+          {passkeyAvailable && (
+            <div className="space-y-6 pb-8 border-b">
+              <div className="flex items-center gap-2">
+                <Fingerprint className="h-5 w-5" />
+                <h2 className="text-lg font-semibold">パスキー管理</h2>
+              </div>
 
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  パスキーを使うと、生体認証（顔認証、指紋認証）や画面ロックで簡単にログインできます。
+                </p>
+              </div>
+
+              {passkeyMessage && (
+                <p className={`text-sm ${passkeyMessage.includes('失敗') || passkeyMessage.includes('エラー') ? 'text-red-600' : 'text-green-600'}`}>
+                  {passkeyMessage}
+                </p>
+              )}
+
+              {passkeys.length > 0 ? (
+                <div className="space-y-3">
+                  <Label>登録済みパスキー</Label>
+                  {passkeys.map((passkey) => (
+                    <div key={passkey.id} className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
+                      <div className="flex-1">
+                        {editingPasskeyId === passkey.id ? (
+                          <Input
+                            value={editingPasskeyName}
+                            onChange={(e) => setEditingPasskeyName(e.target.value)}
+                            onBlur={() => {
+                              if (editingPasskeyName.trim()) {
+                                handleUpdatePasskeyName(passkey.id, editingPasskeyName)
+                              } else {
+                                setEditingPasskeyId(null)
+                                setEditingPasskeyName('')
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && editingPasskeyName.trim()) {
+                                handleUpdatePasskeyName(passkey.id, editingPasskeyName)
+                              }
+                              if (e.key === 'Escape') {
+                                setEditingPasskeyId(null)
+                                setEditingPasskeyName('')
+                              }
+                            }}
+                            autoFocus
+                            className="text-sm"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{passkey.device_name || 'パスキー'}</p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                setEditingPasskeyId(passkey.id)
+                                setEditingPasskeyName(passkey.device_name || 'パスキー')
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">
+                          最終使用: {formatDate(passkey.last_used_at)}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          登録日: {formatDate(passkey.created_at)}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeletePasskey(passkey.id)}
+                        disabled={passkeyLoading}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">登録済みのパスキーはありません</p>
+              )}
+
+              <Button
+                onClick={handleRegisterPasskey}
+                disabled={passkeyLoading}
+                variant="outline"
+                className="w-full"
+              >
+                <Fingerprint className="h-4 w-4 mr-2" />
+                {passkeyLoading ? '登録中...' : '新しいパスキーを登録'}
+              </Button>
+            </div>
+          )}
 
           {/* AI Settings */}
           <div className="space-y-6">

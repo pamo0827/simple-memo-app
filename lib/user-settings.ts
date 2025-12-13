@@ -67,24 +67,40 @@ export async function upsertUserSettings(
   console.log('upsertUserSettings: Upserting for user:', uid)
 
   try {
-    const { data, error } = await supabase
-      .from('user_settings')
-      .upsert(
-        {
-          user_id: uid,
-          ...dataToUpsert,
-          updated_at: new Date().toISOString()
-        },
-        {
-          onConflict: 'user_id',
-        }
-      )
-      .select()
+    // API経由で保存（RLS回避のため）
+    const response = await fetch('/api/user/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        settings: dataToUpsert
+      }),
+    })
 
-    if (error) {
-      console.error('upsertUserSettings: Upsert error:', error)
-      // エラーでも一旦コンソールに出すだけでfalseを返す
-      return false
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('upsertUserSettings: API Error:', errorData)
+
+      // フォールバック: APIが失敗した場合は直接Supabaseを試す
+      console.log('upsertUserSettings: Falling back to direct Supabase call')
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert(
+          {
+            user_id: uid,
+            ...dataToUpsert,
+            updated_at: new Date().toISOString()
+          },
+          {
+            onConflict: 'user_id',
+          }
+        )
+
+      if (error) {
+        console.error('upsertUserSettings: Direct call error:', error)
+        return false
+      }
     }
 
     console.log('upsertUserSettings: Success')

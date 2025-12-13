@@ -74,11 +74,15 @@ function LoginComponent() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isSignupMode) {
-      await handleSignup(email, password, nickname)
-      // Redirect handled in useAuth or component re-render
+      const result = await handleSignup(email, password, nickname)
+      if (result?.showPasskeyRegister) {
+        setShowPasskeyRegister(true)
+      }
     } else {
-      await handleEmailLogin(email, password)
-      // Redirect handled in useAuth or component re-render
+      const result = await handleEmailLogin(email, password)
+      if (result?.showPasskeyRegister) {
+        setShowPasskeyRegister(true)
+      }
     }
   }
 
@@ -89,7 +93,60 @@ function LoginComponent() {
     }
   }
 
+  if (showPasskeyRegister) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
+        <div className="max-w-md w-full">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-center flex items-center justify-center gap-2">
+                <Fingerprint className="h-6 w-6" />
+                パスキーを登録
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="text-center space-y-3">
+                <p className="text-gray-700">
+                  パスキーを登録すると、次回から生体認証や画面ロックで簡単にログインできます。
+                </p>
+                <p className="text-sm text-gray-500">
+                  顔認証、指紋認証、またはPINコードでログインできるようになります。
+                </p>
+              </div>
 
+              {error && (
+                <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <Button
+                  onClick={onRegisterPasskey}
+                  disabled={loading}
+                  className="w-full"
+                  size="lg"
+                >
+                  <Fingerprint className="h-5 w-5 mr-2" />
+                  {loading ? '登録中...' : 'パスキーを登録'}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => router.push('/')}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  スキップ
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
@@ -117,8 +174,8 @@ function LoginComponent() {
               </Button>
             </div>
 
-            {!isSignupMode && (
-              <div className="mb-6 hidden">
+            {!isSignupMode && passkeyAvailable && (
+              <div className="mb-6">
                 <Button
                   type="button"
                   variant="outline"
