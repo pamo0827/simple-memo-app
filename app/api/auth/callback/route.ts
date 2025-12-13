@@ -2,7 +2,6 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 
 export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url)
@@ -98,25 +97,9 @@ export async function GET(request: NextRequest) {
             console.log('Callback: Final resolved profile', { nickname, avatarUrl })
 
             if (nickname || avatarUrl) {
-                // RLS回避のためService Role Keyを使用
-                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-                const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-
-                let targetSupabase = supabase
-
-                if (supabaseServiceKey) {
-                    targetSupabase = createClient(supabaseUrl, supabaseServiceKey, {
-                        auth: {
-                            autoRefreshToken: false,
-                            persistSession: false
-                        }
-                    }) as any
-                } else {
-                    console.warn('Callback: SUPABASE_SERVICE_ROLE_KEY is missing, falling back to user client')
-                }
-
                 // Check if settings exist to avoid overwriting existing nickname if one exists
-                const { data: existing } = await targetSupabase
+                // Note: RLS policies must allow SELECT/INSERT/UPDATE for auth.uid() = user_id
+                const { data: existing } = await supabase
                     .from('user_settings')
                     .select('nickname, avatar_url')
                     .eq('user_id', user.id)
@@ -139,7 +122,7 @@ export async function GET(request: NextRequest) {
                 // Log the update payload
                 console.log('Callback: Updating user_settings with:', updateData)
 
-                const { error: upsertError } = await targetSupabase
+                const { error: upsertError } = await supabase
                     .from('user_settings')
                     .upsert(updateData, { onConflict: 'user_id' })
 
