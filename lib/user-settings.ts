@@ -56,40 +56,41 @@ export async function upsertUserSettings(
 
   // Overload handling
   if (typeof clientOrUserId === 'object' && 'from' in clientOrUserId) {
-    // Called with (client, userId, settings)
     supabase = clientOrUserId as SupabaseClient
     uid = userIdOrSettings as string
     dataToUpsert = settings
-    console.log('upsertUserSettings: Using provided client')
   } else {
-    // Called with (userId, settings) - Legacy
     uid = clientOrUserId as string
     dataToUpsert = userIdOrSettings
-    console.log('upsertUserSettings: Using default client')
   }
 
   console.log('upsertUserSettings: Upserting for user:', uid)
-  console.log('upsertUserSettings: Data keys:', Object.keys(dataToUpsert))
 
-  const { data, error } = await supabase
-    .from('user_settings')
-    .upsert(
-      {
-        user_id: uid,
-        ...dataToUpsert,
-      },
-      {
-        onConflict: 'user_id',
-      }
-    )
-    .select()
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .upsert(
+        {
+          user_id: uid,
+          ...dataToUpsert,
+          updated_at: new Date().toISOString()
+        },
+        {
+          onConflict: 'user_id',
+        }
+      )
+      .select()
 
-  if (error) {
-    console.error('upsertUserSettings: Upsert error:', error)
-    console.error('upsertUserSettings: Error details:', JSON.stringify(error))
+    if (error) {
+      console.error('upsertUserSettings: Upsert error:', error)
+      // エラーでも一旦コンソールに出すだけでfalseを返す
+      return false
+    }
+
+    console.log('upsertUserSettings: Success')
+    return true
+  } catch (e) {
+    console.error('upsertUserSettings: Exception:', e)
     return false
   }
-
-  console.log('upsertUserSettings: Success, rows affected:', data?.length || 0)
-  return true
 }
