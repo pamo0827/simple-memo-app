@@ -20,8 +20,10 @@ export interface AvatarUploadResult {
 export async function downloadAndStoreAvatar(
   userId: string,
   imageUrl: string,
-  provider: 'twitter' | 'manual'
+  provider: 'twitter' | 'manual',
+  supabaseClient?: SupabaseClient
 ): Promise<AvatarUploadResult> {
+  const supabase = supabaseClient || defaultClient
   try {
     // Download image from URL
     const response = await fetch(imageUrl)
@@ -36,7 +38,7 @@ export async function downloadAndStoreAvatar(
     const fileName = `${userId}/avatar.${ext}`
 
     // Upload to Supabase Storage
-    const { data, error } = await defaultClient.storage
+    const { data, error } = await supabase.storage
       .from('avatars')
       .upload(fileName, blob, {
         cacheControl: '3600',
@@ -49,7 +51,7 @@ export async function downloadAndStoreAvatar(
     }
 
     // Get public URL
-    const { data: { publicUrl } } = defaultClient.storage
+    const { data: { publicUrl } } = supabase.storage
       .from('avatars')
       .getPublicUrl(fileName)
 
