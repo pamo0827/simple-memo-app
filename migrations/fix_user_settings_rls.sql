@@ -1,8 +1,15 @@
 -- RLSポリシー修正: user_settingsテーブルのUPSERT操作を許可する
--- user_settingsテーブルの既存ポリシーを削除して再作成
+
+-- まずRLSを有効化（念のため）
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+
+-- 既存のポリシーをすべて削除（名前が異なっても確実に消すため）
 DROP POLICY IF EXISTS "Users can insert their own settings" ON user_settings;
 DROP POLICY IF EXISTS "Users can update their own settings" ON user_settings;
 DROP POLICY IF EXISTS "Users can select their own settings" ON user_settings;
+DROP POLICY IF EXISTS "Enable read access for users based on user_id" ON user_settings;
+DROP POLICY IF EXISTS "Enable insert for users based on user_id" ON user_settings;
+DROP POLICY IF EXISTS "Enable update for users based on user_id" ON user_settings;
 
 -- SELECTポリシー (自分のデータのみ参照可)
 CREATE POLICY "Users can select their own settings"
