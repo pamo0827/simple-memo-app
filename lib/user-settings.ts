@@ -3,6 +3,32 @@ import type { UserSettings } from './supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export async function getUserSettings(userId: string, supabaseClient?: SupabaseClient): Promise<UserSettings | null> {
+  // フロントエンド環境（ブラウザ）では必ずAPIを使う
+  if (typeof window !== 'undefined') {
+    try {
+      console.log('getUserSettings: Calling API')
+      const response = await fetch('/api/user/settings', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        console.error('getUserSettings: API Error', response.status)
+        return null
+      }
+
+      const data = await response.json()
+      console.log('getUserSettings: API Success', data.settings ? 'Found' : 'Not found')
+      return data.settings as UserSettings | null
+    } catch (error) {
+      console.error('getUserSettings: API Exception', error)
+      return null
+    }
+  }
+
+  // サーバーサイド環境ではSupabaseを直接使う
   const supabase = supabaseClient || defaultClient
   const { data, error } = await supabase
     .from('user_settings')
