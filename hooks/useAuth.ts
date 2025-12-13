@@ -15,7 +15,7 @@ export function useAuth() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'twitter',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback-client`,
+        redirectTo: `${window.location.origin}/api/auth/callback`,
       },
     })
     if (error) {
@@ -60,7 +60,7 @@ export function useAuth() {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
-      
+
       let showPasskeyRegister = false
       if (isPasskeyAvailable() && data.user) {
         const { data: passkeys } = await supabase
@@ -93,21 +93,21 @@ export function useAuth() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/` }
+        options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` }
       })
 
       if (error) {
-         if (error.message.includes('already registered') || error.message.includes('User already registered')) {
+        if (error.message.includes('already registered') || error.message.includes('User already registered')) {
           throw new Error('このメールアドレスは既に登録されています。ログインしてください。Twitterアカウントと連携している場合は、Twitterでログインしてください。')
         }
         throw error
       }
-      
+
       if (data.user && !data.session) {
         setError('確認メールを送信しました。メールを確認してください。')
         return undefined
       }
-      
+
       if (data.user) {
         await supabase.from('user_settings').insert([{ user_id: data.user.id, nickname: nickname || null }])
         try {
@@ -119,7 +119,7 @@ export function useAuth() {
 
         const showPasskeyRegister = isPasskeyAvailable()
         if (!showPasskeyRegister) {
-            router.push('/')
+          router.push('/')
         }
         return { user: data.user, showPasskeyRegister }
       }
@@ -132,7 +132,7 @@ export function useAuth() {
     }
   }
 
-   const registerPasskeyFlow = async () => {
+  const registerPasskeyFlow = async () => {
     setLoading(true)
     setError('')
     try {

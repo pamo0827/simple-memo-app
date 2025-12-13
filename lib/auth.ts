@@ -25,7 +25,7 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthRes
     }
   }
 
-  const token = authHeader.replace('Bearer ', '')
+  const token = authHeader.replace('Bearer ', '').trim()
 
   if (!token) {
     return {

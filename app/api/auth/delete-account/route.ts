@@ -1,49 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { authenticateRequest } from '@/lib/auth'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 export async function DELETE(request: NextRequest) {
   try {
-    // クライアント側のSupabaseクライアントを作成してセッションを取得
-    const cookieStore = await cookies()
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-      },
-    })
+    // リクエストヘッダーから認証を行う
+    const authResult = await authenticateRequest(request)
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      console.error('認証エラー詳細:', {
-        error: userError,
-        hasUser: !!user,
-        errorMessage: userError?.message,
-        errorStatus: userError?.status
-      })
-
+    if (!authResult.authenticated || !authResult.userId) {
       return NextResponse.json(
         {
           error: '認証が必要です。ログインセッションが切れている可能性があります。一度ログアウトして再ログインしてください。',
-          details: userError?.message
+          details: authResult.error
         },
         { status: 401 }
       )
     }
 
-    console.log('アカウント削除リクエスト:', { userId: user.id, email: user.email })
+    const userId = authResult.userId
+    console.log('アカウント削除リクエスト:', { userId })
 
     // サービスロールクライアントを使用してアカウント削除
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
     // ユーザーを削除（カスケード削除により関連データも自動削除される）
-    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
 
     if (deleteError) {
       console.error('アカウント削除エラー:', deleteError)
