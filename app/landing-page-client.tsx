@@ -1,9 +1,7 @@
-'use client'
-
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { supabase } from '@/lib/supabase'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 import {
   Link as LinkIcon,
@@ -31,6 +29,7 @@ export default function LandingPageClient({
 }: LandingPageClientProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
     const checkUser = async () => {
@@ -44,7 +43,7 @@ export default function LandingPageClient({
       }
     }
     checkUser()
-  }, [router])
+  }, [router, supabase])
 
   if (loading) {
     return (
@@ -70,12 +69,12 @@ export default function LandingPageClient({
         {/* Hero Section */}
         <section className="relative overflow-hidden pt-20 pb-32 lg:pt-32">
           <div className="container relative z-10 px-6 mx-auto text-center">
-            
+
             <h1 className="mx-auto max-w-4xl text-5xl font-bold tracking-tight text-stone-900 sm:text-6xl md:text-7xl my-16 leading-tight">
               あらゆるURLを、<br className="hidden sm:block" />
               <span className="text-orange-500">AI</span>で整理する。
             </h1>
-            
+
             <p className="mx-auto max-w-2xl text-lg text-stone-600 mb-10 leading-relaxed">
               ブラウザメモアプリの最適解。　もっと、URLをメモしよう。
             </p>
@@ -93,10 +92,10 @@ export default function LandingPageClient({
 
             {/* Floating Elements Animation (Simplified for CSS) */}
             <div className="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/4 opacity-10 pointer-events-none hidden lg:block">
-               <div className="h-64 w-64 rounded-full bg-orange-400 blur-3xl"></div>
+              <div className="h-64 w-64 rounded-full bg-orange-400 blur-3xl"></div>
             </div>
             <div className="absolute bottom-0 right-0 translate-y-1/4 translate-x-1/4 opacity-10 pointer-events-none hidden lg:block">
-               <div className="h-96 w-96 rounded-full bg-yellow-400 blur-3xl"></div>
+              <div className="h-96 w-96 rounded-full bg-yellow-400 blur-3xl"></div>
             </div>
           </div>
         </section>
@@ -106,7 +105,7 @@ export default function LandingPageClient({
           <div className="container px-6 mx-auto">
             <div className="text-center mb-16">
 
-             <h3 className="text-center text-xl font-bold text-stone-800 mb-10">
+              <h3 className="text-center text-xl font-bold text-stone-800 mb-10">
                 便利な機能がもりだくさん
               </h3>
             </div>
@@ -179,74 +178,74 @@ export default function LandingPageClient({
         {/* Verified Sites Section */}
         <section className="py-20">
           <div className="container px-6 mx-auto">
-             <h3 className="text-center text-xl font-bold text-stone-800 mb-10">
-                多様なプラットフォームに対応
-              </h3>
-             <div className="flex flex-wrap justify-center gap-8 opacity-70 grayscale transition-all duration-500 hover:grayscale-0 hover:opacity-100">
-               {/* Logos represented by text/icons for simplicity if images aren't perfect, but reusing existing logic with better styling */}
-               {['YouTube', 'Cookpad', 'クラシル', 'Qiita', 'Zenn', 'note'].map((site) => (
-                 <div key={site} className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-orange-100">
-                   <span className="font-semibold text-stone-600">{site}</span>
-                 </div>
-               ))}
-               <div className="flex items-center gap-2 px-4 py-2 text-stone-500">
-                 <span>and more...</span>
-               </div>
-             </div>
+            <h3 className="text-center text-xl font-bold text-stone-800 mb-10">
+              多様なプラットフォームに対応
+            </h3>
+            <div className="flex flex-wrap justify-center gap-8 opacity-70 grayscale transition-all duration-500 hover:grayscale-0 hover:opacity-100">
+              {/* Logos represented by text/icons for simplicity if images aren't perfect, but reusing existing logic with better styling */}
+              {['YouTube', 'Cookpad', 'クラシル', 'Qiita', 'Zenn', 'note'].map((site) => (
+                <div key={site} className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-orange-100">
+                  <span className="font-semibold text-stone-600">{site}</span>
+                </div>
+              ))}
+              <div className="flex items-center gap-2 px-4 py-2 text-stone-500">
+                <span>and more...</span>
+              </div>
+            </div>
           </div>
         </section>
 
         {/* Use Cases */}
         <section className="py-24 bg-stone-900 text-stone-50">
           <div className="container px-6 mx-auto">
-             <div className="grid md:grid-cols-2 gap-12 items-center">
-               <div>
-                 <h2 className="text-3xl font-bold mb-6">
-                   あなたの生活に、<br/>MEMOTTOを。
-                 </h2>
-                 <div className="space-y-6">
-                   <div className="flex gap-4">
-                     <div className="h-10 w-10 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
-                       <span className="text-xl">🍳</span>
-                     </div>
-                     <div>
-                       <h3 className="text-xl font-bold mb-2">料理のレパートリー管理に</h3>
-                       <p className="text-stone-400">クックパッドやYouTubeのレシピ動画を一つに。自分だけのデジタルレシピブックを作成。</p>
-                     </div>
-                   </div>
-                   <div className="flex gap-4">
-                     <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                       <span className="text-xl">📚</span>
-                     </div>
-                     <div>
-                       <h3 className="text-xl font-bold mb-2">学習の効率化に</h3>
-                       <p className="text-stone-400">参考になった技術記事や解説動画をページごとに整理。後から検索するのも一瞬です。</p>
-                     </div>
-                   </div>
-                   <div className="flex gap-4">
-                     <div className="h-10 w-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                       <span className="text-xl">🎮</span>
-                     </div>
-                     <div>
-                       <h3 className="text-xl font-bold mb-2">趣味のデータベースに</h3>
-                       <p className="text-stone-400">ゲームの攻略情報や推し活の記録など、あらゆる情報を自由にスクラップ。</p>
-                     </div>
-                   </div>
-                 </div>
-               </div>
-               <div className="relative">
-                 {/* Abstract visual for Use Cases */}
-                 <div className="aspect-square rounded-2xl bg-gradient-to-br from-orange-500/20 to-stone-800 border border-stone-800 p-8 flex flex-col gap-4">
-                    <div className="h-8 w-1/3 bg-stone-800 rounded-lg animate-pulse"></div>
-                    <div className="h-32 w-full bg-stone-800 rounded-lg opacity-50"></div>
-                    <div className="h-8 w-1/2 bg-stone-800 rounded-lg opacity-30"></div>
-                    <div className="flex gap-2 mt-auto">
-                       <div className="h-10 w-10 rounded-full bg-stone-700"></div>
-                       <div className="h-10 w-10 rounded-full bg-stone-700"></div>
+            <div className="grid md:grid-cols-2 gap-12 items-center">
+              <div>
+                <h2 className="text-3xl font-bold mb-6">
+                  あなたの生活に、<br />MEMOTTOを。
+                </h2>
+                <div className="space-y-6">
+                  <div className="flex gap-4">
+                    <div className="h-10 w-10 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xl">🍳</span>
                     </div>
-                 </div>
-               </div>
-             </div>
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">料理のレパートリー管理に</h3>
+                      <p className="text-stone-400">クックパッドやYouTubeのレシピ動画を一つに。自分だけのデジタルレシピブックを作成。</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xl">📚</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">学習の効率化に</h3>
+                      <p className="text-stone-400">参考になった技術記事や解説動画をページごとに整理。後から検索するのも一瞬です。</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="h-10 w-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xl">🎮</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">趣味のデータベースに</h3>
+                      <p className="text-stone-400">ゲームの攻略情報や推し活の記録など、あらゆる情報を自由にスクラップ。</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="relative">
+                {/* Abstract visual for Use Cases */}
+                <div className="aspect-square rounded-2xl bg-gradient-to-br from-orange-500/20 to-stone-800 border border-stone-800 p-8 flex flex-col gap-4">
+                  <div className="h-8 w-1/3 bg-stone-800 rounded-lg animate-pulse"></div>
+                  <div className="h-32 w-full bg-stone-800 rounded-lg opacity-50"></div>
+                  <div className="h-8 w-1/2 bg-stone-800 rounded-lg opacity-30"></div>
+                  <div className="flex gap-2 mt-auto">
+                    <div className="h-10 w-10 rounded-full bg-stone-700"></div>
+                    <div className="h-10 w-10 rounded-full bg-stone-700"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -265,7 +264,7 @@ export default function LandingPageClient({
                   多くのレシピやメモをまとめているトップユーザー
                 </p>
               </div>
-              
+
               <div className="space-y-4">
                 {rankingData.map((user, index) => (
                   <div
