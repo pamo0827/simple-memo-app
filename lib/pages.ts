@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabase as defaultClient, type SupabaseClient } from './supabase'
 
 export interface Page {
   id: string
@@ -9,7 +9,8 @@ export interface Page {
   updated_at: string
 }
 
-export async function getPages(userId: string): Promise<Page[]> {
+export async function getPages(userId: string, supabaseClient?: SupabaseClient): Promise<Page[]> {
+  const supabase = supabaseClient || defaultClient
   const { data, error } = await supabase
     .from('pages')
     .select('*')
@@ -24,7 +25,8 @@ export async function getPages(userId: string): Promise<Page[]> {
   return data || []
 }
 
-export async function createPage(userId: string, name: string): Promise<Page | null> {
+export async function createPage(userId: string, name: string, supabaseClient?: SupabaseClient): Promise<Page | null> {
+  const supabase = supabaseClient || defaultClient
   const { data, error } = await supabase
     .from('pages')
     .insert([{ user_id: userId, name }])
@@ -39,7 +41,8 @@ export async function createPage(userId: string, name: string): Promise<Page | n
   return data
 }
 
-export async function updatePage(id: string, updates: Partial<Page>): Promise<Page | null> {
+export async function updatePage(id: string, updates: Partial<Page>, supabaseClient?: SupabaseClient): Promise<Page | null> {
+  const supabase = supabaseClient || defaultClient
   const { data, error } = await supabase
     .from('pages')
     .update(updates)
@@ -55,7 +58,8 @@ export async function updatePage(id: string, updates: Partial<Page>): Promise<Pa
   return data
 }
 
-export async function deletePage(id: string): Promise<boolean> {
+export async function deletePage(id: string, supabaseClient?: SupabaseClient): Promise<boolean> {
+  const supabase = supabaseClient || defaultClient
   const { error } = await supabase
     .from('pages')
     .delete()
@@ -69,7 +73,8 @@ export async function deletePage(id: string): Promise<boolean> {
   return true
 }
 
-export async function updatePageOrder(pageId: string, listOrder: string[]): Promise<boolean> {
+export async function updatePageOrder(pageId: string, listOrder: string[], supabaseClient?: SupabaseClient): Promise<boolean> {
+  const supabase = supabaseClient || defaultClient
   const { error } = await supabase
     .from('pages')
     .update({ list_order: listOrder })

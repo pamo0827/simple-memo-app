@@ -151,7 +151,7 @@ export default function HomePage() {
     }
 
     // Load pages first
-    const userPages = await getPages(user.id)
+    const userPages = await getPages(user.id, supabase)
     setPages(userPages)
     if (userPages.length > 0) {
       // Default to first page if no saved state (could save last visited page in user_settings later)
@@ -166,12 +166,12 @@ export default function HomePage() {
   const loadPageData = async (uid: string, pageId: string) => {
     setLoading(true)
     const [recipeData, categoryData] = await Promise.all([
-      getRecipes(uid, pageId),
-      getCategories(uid, pageId)
+      getRecipes(uid, pageId, supabase),
+      getCategories(uid, pageId, supabase)
     ])
 
     // Get current page's order
-    const currentPage = pages.find(p => p.id === pageId) || await getPages(uid).then(ps => ps.find(p => p.id === pageId))
+    const currentPage = pages.find(p => p.id === pageId) || await getPages(uid, supabase).then(ps => ps.find(p => p.id === pageId))
 
     setRecipes(recipeData)
     setCategories(categoryData.map(c => ({ ...c, type: 'category' })))
@@ -180,75 +180,9 @@ export default function HomePage() {
     setLoading(false)
   }
 
-  const handlePageSelect = async (pageId: string) => {
-    if (!userId || pageId === currentPageId) return
-    setCurrentPageId(pageId)
-    await loadPageData(userId, pageId)
-  }
-
-  const handleCreatePage = async (name: string) => {
-    if (!userId) return
-    const newPage = await createPage(userId, name)
-    if (newPage) {
-      setPages([...pages, newPage])
-      handlePageSelect(newPage.id)
-    }
-  }
-
-  const handleCreatePageSubmit = () => {
-    if (newPageName.trim()) {
-      handleCreatePage(newPageName.trim())
-      setNewPageName('')
-      setCreateDialogOpen(false)
-    }
-  }
-
-  const handleUpdatePage = async (pageId: string, name: string) => {
-    const updated = await updatePage(pageId, { name })
-    if (updated) {
-      setPages(pages.map(p => p.id === pageId ? updated : p))
-    }
-  }
-
-  const handleRenamePageSubmit = () => {
-    if (editingPage && newPageName.trim()) {
-      handleUpdatePage(editingPage.id, newPageName.trim())
-      setNewPageName('')
-      setEditingPage(null)
-      setRenameDialogOpen(false)
-    }
-  }
-
-  const openRenameDialog = (page: Page) => {
-    setEditingPage(page)
-    setNewPageName(page.name)
-    setRenameDialogOpen(true)
-  }
-
-  const handleDeletePage = async (pageId: string) => {
-    if (pages.length <= 1) {
-      alert("最後のページは削除できません")
-      return
-    }
-    const success = await deletePage(pageId)
-    if (success) {
-      const newPages = pages.filter(p => p.id !== pageId)
-      setPages(newPages)
-      if (currentPageId === pageId) {
-        handlePageSelect(newPages[0].id)
-      }
-    }
-  }
-
-  const handleDeletePageClick = (page: Page) => {
-    if (confirm(`ページ「${page.name}」を削除しますか？\n含まれるメモもすべて削除されます。`)) {
-      handleDeletePage(page.id)
-    }
-  }
-
 
   const handleRecipeUpdate = async (id: string, updates: Partial<Recipe>) => {
-    const updatedRecipe = await updateRecipe(id, updates)
+    const updatedRecipe = await updateRecipe(id, updates, supabase)
     if (updatedRecipe) {
       setRecipes(recipes.map(r => r.id === id ? updatedRecipe : r))
     }
@@ -277,18 +211,18 @@ export default function HomePage() {
 
     if (currentPageId) {
       // Update page order in DB
-      await updatePageOrder(currentPageId, newOrder)
+      await updatePageOrder(currentPageId, newOrder, supabase)
       // Update local pages state to reflect order change
       setPages(pages.map(p => p.id === currentPageId ? { ...p, list_order: newOrder } : p))
     }
 
     const recipeIds = newListItems.filter(item => item.type === 'recipe').map(item => item.id)
-    await updateRecipeOrder(recipeIds)
+    await updateRecipeOrder(recipeIds, supabase)
   }
 
   const handleAddCategory = async () => {
     if (!userId || !currentPageId) return
-    const newCategory = await dbCreateCategory(userId, '新しいカテゴリー', currentPageId)
+    const newCategory = await dbCreateCategory(userId, '新しいカテゴリー', currentPageId, supabase)
     if (newCategory) {
       setCategories([...categories, { ...newCategory, type: 'category' }])
       setMenuOpen(false)
@@ -296,9 +230,76 @@ export default function HomePage() {
   }
 
   const handleEditCategory = async (id: string, newName: string) => {
-    const updatedCategory = await dbUpdateCategory(id, newName)
+    const updatedCategory = await dbUpdateCategory(id, newName, supabase)
     if (updatedCategory) {
       setCategories(categories.map(c => c.id === id ? { ...updatedCategory, type: 'category' } : c))
+    }
+  }
+
+
+  const handlePageSelect = async (pageId: string) => {
+    if (!userId || pageId === currentPageId) return
+    setCurrentPageId(pageId)
+    await loadPageData(userId, pageId)
+  }
+
+  const handleCreatePage = async (name: string) => {
+    if (!userId) return
+    const newPage = await createPage(userId, name, supabase)
+    if (newPage) {
+      setPages([...pages, newPage])
+      handlePageSelect(newPage.id)
+    }
+  }
+
+  const handleCreatePageSubmit = () => {
+    if (newPageName.trim()) {
+      handleCreatePage(newPageName.trim())
+      setNewPageName('')
+      setCreateDialogOpen(false)
+    }
+  }
+
+  const handleUpdatePage = async (pageId: string, name: string) => {
+    const updated = await updatePage(pageId, { name }, supabase)
+    if (updated) {
+      setPages(pages.map(p => p.id === pageId ? updated : p))
+    }
+  }
+
+  const handleRenamePageSubmit = () => {
+    if (editingPage && newPageName.trim()) {
+      handleUpdatePage(editingPage.id, newPageName.trim())
+      setNewPageName('')
+      setEditingPage(null)
+      setRenameDialogOpen(false)
+    }
+  }
+
+  const openRenameDialog = (page: Page) => {
+    setEditingPage(page)
+    setNewPageName(page.name)
+    setRenameDialogOpen(true)
+  }
+
+  const handleDeletePage = async (pageId: string) => {
+    if (pages.length <= 1) {
+      alert("最後のページは削除できません")
+      return
+    }
+    const success = await deletePage(pageId, supabase)
+    if (success) {
+      const newPages = pages.filter(p => p.id !== pageId)
+      setPages(newPages)
+      if (currentPageId === pageId) {
+        handlePageSelect(newPages[0].id)
+      }
+    }
+  }
+
+  const handleDeletePageClick = (page: Page) => {
+    if (confirm(`ページ「${page.name}」を削除しますか？\n含まれるメモもすべて削除されます。`)) {
+      handleDeletePage(page.id)
     }
   }
 
@@ -335,8 +336,8 @@ export default function HomePage() {
     const recipeIdsToDelete = Array.from(selectedIds).filter(id => listItems.find(item => item.id === id && item.type === 'recipe'))
     const categoryIdsToDelete = Array.from(selectedIds).filter(id => listItems.find(item => item.id === id && item.type === 'category'))
 
-    const recipeDeletePromises = recipeIdsToDelete.map(id => deleteRecipe(id))
-    const categoryDeletePromises = categoryIdsToDelete.map(id => dbDeleteCategory(id))
+    const recipeDeletePromises = recipeIdsToDelete.map(id => deleteRecipe(id, supabase))
+    const categoryDeletePromises = categoryIdsToDelete.map(id => dbDeleteCategory(id, supabase))
 
     await Promise.all([...recipeDeletePromises, ...categoryDeletePromises])
 
@@ -356,7 +357,7 @@ export default function HomePage() {
         ingredients: '',
         instructions: '',
         source_url: undefined,
-      }, currentPageId)
+      }, currentPageId, supabase)
 
       if (recipe) {
         setRecipes([recipe, ...recipes])
