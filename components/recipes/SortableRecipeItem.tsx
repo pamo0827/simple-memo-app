@@ -23,6 +23,7 @@ export function SortableRecipeItem({
   isSelected,
   onToggleSelect,
   onUpdateRecipe,
+  autoAiSummary,
 }: {
   recipe: Recipe;
   faviconUrl: string | null;
@@ -30,14 +31,15 @@ export function SortableRecipeItem({
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   onUpdateRecipe: (id: string, updates: Partial<Recipe>) => void;
+  autoAiSummary: boolean;
 }) {
   const [editingName, setEditingName] = useState(false)
   const [editingUrl, setEditingUrl] = useState(false)
   const [editingContent, setEditingContent] = useState(false)
-  
+
   const [tempName, setTempName] = useState(recipe.name)
   const [tempUrl, setTempUrl] = useState(recipe.source_url || '')
-  
+
   const initialCombinedContent = useMemo(() => {
     return [recipe.ingredients, recipe.instructions]
       .filter(s => s && s.trim())
@@ -50,50 +52,11 @@ export function SortableRecipeItem({
   const { scrapeUrl, isScraping, scrapeError } = useRecipeScrap()
   const triggerRef = useRef<HTMLButtonElement>(null)
 
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: recipe.id, disabled: isSelectionMode })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
-
-  const handleSaveName = () => {
-    if (tempName !== recipe.name && tempName.trim()) {
-      onUpdateRecipe(recipe.id, { name: tempName })
-    }
-    setEditingName(false)
-  }
-
-  const handleSaveUrl = () => {
-    if (tempUrl !== recipe.source_url) {
-      onUpdateRecipe(recipe.id, { source_url: tempUrl || undefined })
-    }
-    setEditingUrl(false)
-  }
-
-  const handleSaveContent = () => {
-    const currentCombined = [recipe.ingredients, recipe.instructions]
-      .filter(s => s && s.trim())
-      .join('\n\n')
-      
-    if (tempContent !== currentCombined) {
-      onUpdateRecipe(recipe.id, { 
-        ingredients: '', 
-        instructions: tempContent 
-      })
-    }
-    setEditingContent(false)
-  }
-
-  const handleRunAI = async () => {
-    if (!tempUrl) return
-    const result = await scrapeUrl(tempUrl, true)
+  // handleRunAI defined before handleSaveUrl to be used in it
+  const handleRunAI = async (arg?: string | React.MouseEvent) => {
+    const targetUrl = typeof arg === 'string' ? arg : tempUrl
+    if (!targetUrl) return
+    const result = await scrapeUrl(targetUrl, true)
     setHasUsedAI(true)
 
     if (!result) return
@@ -130,6 +93,54 @@ export function SortableRecipeItem({
       ingredients: '',
       instructions: content
     })
+  }
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: recipe.id, disabled: isSelectionMode })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  const handleSaveName = () => {
+    if (tempName !== recipe.name && tempName.trim()) {
+      onUpdateRecipe(recipe.id, { name: tempName })
+    }
+    setEditingName(false)
+  }
+
+  const handleSaveUrl = async () => {
+    const hasChanged = tempUrl !== recipe.source_url
+    if (hasChanged) {
+      onUpdateRecipe(recipe.id, { source_url: tempUrl || undefined })
+    }
+    setEditingUrl(false)
+
+    // AI自動要約が有効かつURLが変更された場合（またはURLがあって未実行の場合）
+    // NOTE: hasChanged check ensures we don't re-run if user just clicked edit and cancelled/unchanged
+    if (autoAiSummary && tempUrl && hasChanged) {
+      await handleRunAI(tempUrl)
+    }
+  }
+
+  const handleSaveContent = () => {
+    const currentCombined = [recipe.ingredients, recipe.instructions]
+      .filter(s => s && s.trim())
+      .join('\n\n')
+
+    if (tempContent !== currentCombined) {
+      onUpdateRecipe(recipe.id, {
+        ingredients: '',
+        instructions: tempContent
+      })
+    }
+    setEditingContent(false)
   }
 
   return (
@@ -309,7 +320,7 @@ export function SortableRecipeItem({
                 className="text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[300px] bg-white border-gray-300 focus:border-gray-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             ) : (
-              <RecipeMarkdown 
+              <RecipeMarkdown
                 content={initialCombinedContent}
                 url={recipe.source_url}
                 onDoubleClick={() => setEditingContent(true)}

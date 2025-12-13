@@ -463,8 +463,8 @@ export default function HomePage() {
                   variant={currentPageId === page.id ? "secondary" : "ghost"}
                   onClick={() => handlePageSelect(page.id)}
                   className={`rounded-full px-4 h-10 ${currentPageId === page.id
-                      ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
-                      : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+                    : 'text-gray-600 hover:bg-gray-100'
                     }`}
                 >
                   <File className="h-4 w-4 mr-2" />
@@ -558,6 +558,7 @@ export default function HomePage() {
                           isSelected={selectedIds.has(item.id)}
                           onToggleSelect={toggleItemSelection}
                           onUpdateRecipe={handleRecipeUpdate}
+                          autoAiSummary={autoAiSummary}
                         />
                       )
                     }
@@ -614,8 +615,8 @@ export default function HomePage() {
       )}
 
       <div className={`fixed bottom-24 right-6 flex flex-col gap-3 z-40 transition-all duration-300 ease-in-out ${isMenuOpen
-          ? 'opacity-100 translate-y-0 pointer-events-auto'
-          : 'opacity-0 translate-y-4 pointer-events-none'
+        ? 'opacity-100 translate-y-0 pointer-events-auto'
+        : 'opacity-0 translate-y-4 pointer-events-none'
         }`}>
         <Button
           variant="default"
