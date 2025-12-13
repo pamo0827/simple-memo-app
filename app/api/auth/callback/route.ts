@@ -16,15 +16,16 @@ export async function GET(request: NextRequest) {
         const { data: { user } } = await supabase.auth.getUser()
         if (user && user.user_metadata) {
             // prioritize nickname from metadata (sent during signup) over other fields
-            const { avatar_url, full_name, name, user_name, nickname: meta_nickname } = user.user_metadata
+            const { avatar_url, picture, image, full_name, name, user_name, nickname: meta_nickname } = user.user_metadata
             const nickname = meta_nickname || full_name || name || user_name
+            const finalAvatarUrl = avatar_url || picture || image
 
-            if (avatar_url || nickname) {
+            if (finalAvatarUrl || nickname) {
                 await supabase
                     .from('user_settings')
                     .upsert({
                         user_id: user.id,
-                        avatar_url: avatar_url,
+                        avatar_url: finalAvatarUrl,
                         nickname: nickname,
                     }, { onConflict: 'user_id' })
             }
