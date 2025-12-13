@@ -17,6 +17,7 @@ export function useAuth() {
       provider: 'twitter',
       options: {
         redirectTo: `${window.location.origin}/api/auth/callback`,
+        scopes: 'users.read tweet.read',
       },
     })
     if (error) {

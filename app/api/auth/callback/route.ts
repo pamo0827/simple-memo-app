@@ -98,6 +98,7 @@ export async function GET(request: NextRequest) {
 
             if (nickname || avatarUrl) {
                 // Check if settings exist to avoid overwriting existing nickname if one exists
+                // Note: RLS policies must allow SELECT/INSERT/UPDATE for auth.uid() = user_id
                 const { data: existing } = await supabase
                     .from('user_settings')
                     .select('nickname, avatar_url')
