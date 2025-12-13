@@ -29,25 +29,16 @@ export async function GET(request: NextRequest) {
             const user = session?.user
 
             if (user) {
-                console.log('Callback: User found', user.id)
-
                 // Try to find provider-specific identity (e.g. twitter)
                 // (Sync logic preserved)
                 try {
                     const identities = user.identities || []
                     const twitterIdentity = identities.find(id => id.provider === 'twitter')
 
-                    console.log('Callback: Found identities:', identities.length)
-                    console.log('Callback: Twitter identity exists:', !!twitterIdentity)
-                    console.log('Callback: Provider token exists:', !!session?.provider_token)
-
                     // ... (Existing sync logic here) ...
                     // Prioritize metadata from signup, then identity data
                     const meta = user.user_metadata || {}
                     const identityData = twitterIdentity?.identity_data || {}
-
-                    console.log('Callback: user_metadata keys:', Object.keys(meta))
-                    console.log('Callback: identity_data keys:', Object.keys(identityData))
 
                     let nickname =
                         meta.nickname ||
@@ -71,12 +62,8 @@ export async function GET(request: NextRequest) {
                         identityData.picture ||
                         identityData.image
 
-                    console.log('Callback: Initial nickname:', nickname)
-                    console.log('Callback: Initial avatarUrl:', avatarUrl)
-
                     // Twitter API Fetch
                     if (twitterIdentity && session?.provider_token) {
-                        console.log('Callback: Attempting Twitter API fetch')
                         try {
                             const res = await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url,name,username', {
                                 headers: {
@@ -84,19 +71,13 @@ export async function GET(request: NextRequest) {
                                 }
                             })
 
-                            console.log('Callback: Twitter API status:', res.status)
-
                             if (res.ok) {
                                 const twitterJson = await res.json()
-                                console.log('Callback: Twitter API response:', JSON.stringify(twitterJson))
                                 const data = twitterJson.data
                                 if (data) {
                                     if (data.name) nickname = data.name
                                     else if (data.username) nickname = data.username
                                     if (data.profile_image_url) avatarUrl = data.profile_image_url.replace('_normal', '')
-
-                                    console.log('Callback: Updated nickname from API:', nickname)
-                                    console.log('Callback: Updated avatarUrl from API:', avatarUrl)
                                 }
                             } else {
                                 const errorText = await res.text()
@@ -105,12 +86,9 @@ export async function GET(request: NextRequest) {
                         } catch (apiError) {
                             console.error('Callback: Twitter API fetch exception:', apiError)
                         }
-                    } else {
-                        console.log('Callback: Skipping Twitter API (no identity or token)')
                     }
 
                     if (nickname || avatarUrl) {
-                        console.log('Callback: Attempting to upsert user_settings')
                         const { data: existing } = await supabase
                             .from('user_settings')
                             .select('nickname')
@@ -124,17 +102,11 @@ export async function GET(request: NextRequest) {
                         if (avatarUrl) updateData.avatar_url = avatarUrl
                         if (!existing?.nickname && nickname) updateData.nickname = nickname
 
-                        console.log('Callback: Update data:', JSON.stringify(updateData))
-
                         const { error: upsertError } = await supabase.from('user_settings').upsert(updateData, { onConflict: 'user_id' })
 
                         if (upsertError) {
                             console.error('Callback: Upsert error:', upsertError)
-                        } else {
-                            console.log('Callback: Successfully updated user_settings')
                         }
-                    } else {
-                        console.log('Callback: No nickname or avatarUrl to update')
                     }
                 } catch (syncError) {
                     console.error('Callback: Profile sync error (non-fatal):', syncError)
@@ -148,6 +120,5 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    console.log('Callback: Redirecting to', redirectUrl.toString())
     return NextResponse.redirect(redirectUrl)
 }

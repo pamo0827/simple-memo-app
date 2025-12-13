@@ -3,6 +3,30 @@ import type { UserSettings } from './supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export async function getUserSettings(userId: string, supabaseClient?: SupabaseClient): Promise<UserSettings | null> {
+  // フロントエンド環境（ブラウザ）では必ずAPIを使う
+  if (typeof window !== 'undefined') {
+    try {
+      const response = await fetch('/api/user/settings', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        console.error('getUserSettings: API Error', response.status)
+        return null
+      }
+
+      const data = await response.json()
+      return data.settings as UserSettings | null
+    } catch (error) {
+      console.error('getUserSettings: API Exception', error)
+      return null
+    }
+  }
+
+  // サーバーサイド環境ではSupabaseを直接使う
   const supabase = supabaseClient || defaultClient
   const { data, error } = await supabase
     .from('user_settings')
@@ -56,40 +80,51 @@ export async function upsertUserSettings(
 
   // Overload handling
   if (typeof clientOrUserId === 'object' && 'from' in clientOrUserId) {
-    // Called with (client, userId, settings)
     supabase = clientOrUserId as SupabaseClient
     uid = userIdOrSettings as string
     dataToUpsert = settings
-    console.log('upsertUserSettings: Using provided client')
   } else {
-    // Called with (userId, settings) - Legacy
     uid = clientOrUserId as string
     dataToUpsert = userIdOrSettings
-    console.log('upsertUserSettings: Using default client')
   }
 
-  console.log('upsertUserSettings: Upserting for user:', uid)
-  console.log('upsertUserSettings: Data keys:', Object.keys(dataToUpsert))
-
-  const { data, error } = await supabase
-    .from('user_settings')
-    .upsert(
-      {
-        user_id: uid,
-        ...dataToUpsert,
+  try {
+    // API経由で保存（RLS回避のため）
+    const response = await fetch('/api/user/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-      {
-        onConflict: 'user_id',
-      }
-    )
-    .select()
+      body: JSON.stringify({
+        settings: dataToUpsert
+      }),
+    })
 
-  if (error) {
-    console.error('upsertUserSettings: Upsert error:', error)
-    console.error('upsertUserSettings: Error details:', JSON.stringify(error))
+    if (!response.ok) {
+      const errorData = await response.json()
+      // フォールバック: APIが失敗した場合は直接Supabaseを試す
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert(
+          {
+            user_id: uid,
+            ...dataToUpsert,
+            updated_at: new Date().toISOString()
+          },
+          {
+            onConflict: 'user_id',
+          }
+        )
+
+      if (error) {
+        console.error('upsertUserSettings: Direct call error:', error)
+        return false
+      }
+    }
+
+    return true
+  } catch (e) {
+    console.error('upsertUserSettings: Exception:', e)
     return false
   }
-
-  console.log('upsertUserSettings: Success, rows affected:', data?.length || 0)
-  return true
 }

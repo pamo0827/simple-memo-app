@@ -12,7 +12,6 @@ import {
   Crown,
   Layers,
   Share2,
-  Fingerprint,
   Sliders,
   ChevronRight,
   Star,
@@ -159,20 +158,7 @@ export default function LandingPageClient({
                 </CardContent>
               </Card>
 
-              {/* Feature 6: Security */}
-              <Card className="border-none shadow-md bg-white hover:shadow-lg transition-shadow duration-300">
-                <CardHeader>
-                  <div className="h-12 w-12 rounded-2xl bg-orange-100 flex items-center justify-center mb-4">
-                    <Fingerprint className="h-6 w-6 text-orange-600" />
-                  </div>
-                  <CardTitle>パスキー認証</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-base">
-                    指紋認証や顔認証で、安全かつ瞬時にログイン。パスワードを覚える必要も、入力する手間もありません。
-                  </CardDescription>
-                </CardContent>
-              </Card>
+
             </div>
           </div>
         </section>
