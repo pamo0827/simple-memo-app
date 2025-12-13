@@ -1,7 +1,8 @@
-import { supabase } from './supabase'
+import { supabase as defaultClient, type SupabaseClient } from './supabase'
 import type { Category } from './supabase'
 
-export async function getCategories(userId: string, pageId?: string): Promise<Category[]> {
+export async function getCategories(userId: string, pageId?: string, supabaseClient?: SupabaseClient): Promise<Category[]> {
+  const supabase = supabaseClient || defaultClient
   let query = supabase
     .from('categories')
     .select('*')
@@ -21,7 +22,8 @@ export async function getCategories(userId: string, pageId?: string): Promise<Ca
   return data || []
 }
 
-export async function createCategory(userId: string, name: string, pageId?: string): Promise<Category | null> {
+export async function createCategory(userId: string, name: string, pageId?: string, supabaseClient?: SupabaseClient): Promise<Category | null> {
+  const supabase = supabaseClient || defaultClient
   const { data, error } = await supabase
     .from('categories')
     .insert({ user_id: userId, name, page_id: pageId })
@@ -35,7 +37,8 @@ export async function createCategory(userId: string, name: string, pageId?: stri
   return data
 }
 
-export async function updateCategory(id: string, name: string): Promise<Category | null> {
+export async function updateCategory(id: string, name: string, supabaseClient?: SupabaseClient): Promise<Category | null> {
+  const supabase = supabaseClient || defaultClient
   const { data, error } = await supabase
     .from('categories')
     .update({ name })
@@ -50,7 +53,8 @@ export async function updateCategory(id: string, name: string): Promise<Category
   return data
 }
 
-export async function deleteCategory(id: string): Promise<boolean> {
+export async function deleteCategory(id: string, supabaseClient?: SupabaseClient): Promise<boolean> {
+  const supabase = supabaseClient || defaultClient
   const { error } = await supabase
     .from('categories')
     .delete()
