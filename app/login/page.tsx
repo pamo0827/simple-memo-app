@@ -1,15 +1,14 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Eye, EyeOff, Fingerprint } from 'lucide-react'
-import { isPasskeyAvailable, authenticateWithPasskey, registerPasskey } from '@/lib/passkey'
-import { getPages, createPage } from '@/lib/pages'
+import { isPasskeyAvailable } from '@/lib/passkey'
+import { useAuth } from '@/hooks/useAuth'
 
 // Twitter icon SVG component
 function TwitterIcon({ className = "h-5 w-5" }: { className?: string }) {
@@ -25,14 +24,22 @@ function LoginComponent() {
   const [password, setPassword] = useState('')
   const [nickname, setNickname] = useState('')
   const [isSignupMode, setIsSignupMode] = useState(true)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [passkeyAvailable, setPasskeyAvailable] = useState(false)
   const [showPasskeyRegister, setShowPasskeyRegister] = useState(false)
-  const [justLoggedIn, setJustLoggedIn] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  const { 
+    loading, 
+    error, 
+    setError, 
+    handleTwitterLogin, 
+    handlePasskeyLogin, 
+    handleEmailLogin, 
+    handleSignup, 
+    registerPasskeyFlow 
+  } = useAuth()
 
   useEffect(() => {
     if (searchParams.get('test_user') === 'true') {
@@ -40,10 +47,8 @@ function LoginComponent() {
       setPassword('weqho8-vIkkew-sojbas')
     }
 
-    // パスキーが利用可能かチェック
     setPasskeyAvailable(isPasskeyAvailable())
 
-    // URLハッシュからエラーをチェック (OAuthリダイレクトエラー用)
     const handleHashError = () => {
       if (typeof window === 'undefined') return
       
@@ -52,248 +57,42 @@ function LoginComponent() {
 
       const params = new URLSearchParams(hash.substring(1))
       const errorDescription = params.get('error_description')
-      const error = params.get('error')
+      const err = params.get('error')
 
       if (errorDescription === 'Error getting user email from external provider') {
         setError('Twitterアカウントからメールアドレスを取得できませんでした。Twitterの設定でメールアドレスが登録・確認されているかご確認ください。')
-        // URLをきれいにする
         window.history.replaceState(null, '', window.location.pathname)
-      } else if (error || errorDescription) {
+      } else if (err || errorDescription) {
         setError(decodeURIComponent(errorDescription || '認証エラーが発生しました'))
         window.history.replaceState(null, '', window.location.pathname)
       }
     }
 
     handleHashError()
-  }, [searchParams])
+  }, [searchParams, setError])
 
-  // Twitter OAuth認証
-  const handleTwitterLogin = async () => {
-    setLoading(true)
-    setError('')
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'twitter',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback-client`,
-      },
-    })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-    }
-    // OAuthはリダイレクトするため、ここでloadingをfalseにしない
-  }
-
-  // パスキーで自動ログイン
-  const handlePasskeyLogin = async () => {
-    setLoading(true)
-    setError('')
-
-    try {
-      // パスキーで認証
-      const result = await authenticateWithPasskey()
-
-      if (!result.success || !result.credentialId) {
-        setError(result.error || 'パスキー認証に失敗しました')
-        setLoading(false)
-        return
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isSignupMode) {
+      const result = await handleSignup(email, password, nickname)
+      if (result?.showPasskeyRegister) {
+        setShowPasskeyRegister(true)
       }
-
-      // サーバー側のAPIを呼び出してトークンを取得
-      const response = await fetch('/api/auth/passkey-login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          credentialId: result.credentialId,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        setError(data.error || 'パスキーログインに失敗しました')
-        setLoading(false)
-        return
+    } else {
+      const result = await handleEmailLogin(email, password)
+      if (result?.showPasskeyRegister) {
+        setShowPasskeyRegister(true)
       }
-
-      // トークンを使ってSupabaseのセッションを設定
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: data.accessToken,
-        refresh_token: data.refreshToken,
-      })
-
-      if (sessionError) {
-        console.error('セッション設定エラー:', sessionError)
-        setError('セッションの設定に失敗しました')
-        setLoading(false)
-        return
-      }
-
-      // ログイン成功
-      router.push('/recipes')
-    } catch (err) {
-      console.error('パスキーログインエラー:', err)
-      setError('パスキーログインに失敗しました')
-      setLoading(false)
     }
   }
 
-  // パスキーを登録
-  const handleRegisterPasskey = async () => {
-    setLoading(true)
-    setError('')
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (!user) {
-        setError('ログインしてください')
-        setLoading(false)
-        return
-      }
-
-      const result = await registerPasskey(
-        { email: user.email!, userId: user.id },
-        'このデバイス'
-      )
-
-      if (!result.success) {
-        setError(result.error || 'パスキー登録に失敗しました')
-        setLoading(false)
-        return
-      }
-
+  const onRegisterPasskey = async () => {
+    const success = await registerPasskeyFlow()
+    if (success) {
       setShowPasskeyRegister(false)
-      router.push('/')
-    } catch (err) {
-      console.error('パスキー登録エラー:', err)
-      setError('パスキー登録に失敗しました')
-      setLoading(false)
     }
   }
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    try {
-      console.log('ログイン開始:', email)
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      console.log('ログイン結果:', { data, error })
-
-      if (error) {
-        setError(error.message)
-      } else {
-        console.log('ログイン成功、リダイレクト中')
-        setJustLoggedIn(true)
-
-        // パスキーが利用可能で、まだ登録していない場合、登録を促す
-        if (passkeyAvailable && data.user) {
-          const { data: passkeys } = await supabase
-            .from('passkeys')
-            .select('id')
-            .eq('user_id', data.user.id)
-            .limit(1)
-
-          if (!passkeys || passkeys.length === 0) {
-            setShowPasskeyRegister(true)
-            setLoading(false)
-            return
-          }
-        }
-
-        router.push('/')
-      }
-    } catch (err) {
-      console.error('ログインエラー:', err)
-      setError('ログインに失敗しました')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    try {
-      console.log('新規登録開始:', email)
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-        }
-      })
-
-      console.log('新規登録結果:', { data, error })
-
-      if (error) {
-        // メールアドレス重複エラーの場合、分かりやすいメッセージを表示
-        if (error.message.includes('already registered') || error.message.includes('User already registered')) {
-          setError('このメールアドレスは既に登録されています。ログインしてください。Twitterアカウントと連携している場合は、Twitterでログインしてください。')
-        } else {
-          setError(error.message)
-        }
-      } else if (data.user && !data.session) {
-        setError('確認メールを送信しました。メールを確認してください。')
-      } else if (data.user) {
-        // ユーザー設定にニックネームを保存
-        const { error: settingsError } = await supabase
-          .from('user_settings')
-          .insert([
-            {
-              user_id: data.user.id,
-              nickname: nickname || null,
-            }
-          ])
-
-        if (settingsError) {
-          console.error('設定保存エラー:', settingsError)
-        }
-
-        // デフォルトページを作成
-        try {
-          const pages = await getPages(data.user.id)
-          if (pages.length === 0) {
-            await createPage(data.user.id, 'メイン')
-          }
-        } catch (err) {
-          console.error('デフォルトページ作成エラー:', err)
-          // エラーがあっても登録は続行
-        }
-
-        console.log('登録成功、リダイレクト中')
-        setJustLoggedIn(true)
-
-        // パスキーが利用可能な場合、登録を促す
-        if (passkeyAvailable && data.user) {
-          setShowPasskeyRegister(true)
-          setLoading(false)
-          return
-        }
-
-        router.push('/')
-      }
-    } catch (err) {
-      console.error('新規登録エラー:', err)
-      setError('エラーが発生しました')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // パスキー登録ダイアログ
   if (showPasskeyRegister) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-4">
@@ -323,7 +122,7 @@ function LoginComponent() {
 
               <div className="space-y-3">
                 <Button
-                  onClick={handleRegisterPasskey}
+                  onClick={onRegisterPasskey}
                   disabled={loading}
                   className="w-full"
                   size="lg"
@@ -361,7 +160,6 @@ function LoginComponent() {
             <CardTitle className="text-center">{isSignupMode ? '新規登録' : 'ログイン'}</CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Twitter OAuth ボタン */}
             <div className="mb-6">
               <Button
                 type="button"
@@ -376,7 +174,6 @@ function LoginComponent() {
               </Button>
             </div>
 
-            {/* パスキーログインボタン（ログインモード時のみ） */}
             {!isSignupMode && passkeyAvailable && (
               <div className="mb-6">
                 <Button
@@ -393,7 +190,6 @@ function LoginComponent() {
               </div>
             )}
 
-            {/* 区切り線 */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-200"></div>
@@ -403,7 +199,7 @@ function LoginComponent() {
               </div>
             </div>
 
-            <form className="space-y-6" onSubmit={isSignupMode ? handleSignup : handleLogin}>
+            <form className="space-y-6" onSubmit={onSubmit}>
               <div className="space-y-4">
                 {isSignupMode && (
                   <div className="space-y-2">
