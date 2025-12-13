@@ -150,75 +150,8 @@ export default function HomePage() {
       setAutoAiSummary(true)
     }
 
-    const handlePageSelect = async (pageId: string) => {
-      if (!userId || pageId === currentPageId) return
-      setCurrentPageId(pageId)
-      await loadPageData(userId, pageId)
-    }
-
-    const handleCreatePage = async (name: string) => {
-      if (!userId) return
-      const newPage = await createPage(userId, name, supabase)
-      if (newPage) {
-        setPages([...pages, newPage])
-        handlePageSelect(newPage.id)
-      }
-    }
-
-    const handleCreatePageSubmit = () => {
-      if (newPageName.trim()) {
-        handleCreatePage(newPageName.trim())
-        setNewPageName('')
-        setCreateDialogOpen(false)
-      }
-    }
-
-    const handleUpdatePage = async (pageId: string, name: string) => {
-      const updated = await updatePage(pageId, { name }, supabase)
-      if (updated) {
-        setPages(pages.map(p => p.id === pageId ? updated : p))
-      }
-    }
-
-    const handleRenamePageSubmit = () => {
-      if (editingPage && newPageName.trim()) {
-        handleUpdatePage(editingPage.id, newPageName.trim())
-        setNewPageName('')
-        setEditingPage(null)
-        setRenameDialogOpen(false)
-      }
-    }
-
-    const openRenameDialog = (page: Page) => {
-      setEditingPage(page)
-      setNewPageName(page.name)
-      setRenameDialogOpen(true)
-    }
-
-    const handleDeletePage = async (pageId: string) => {
-      if (pages.length <= 1) {
-        alert("最後のページは削除できません")
-        return
-      }
-      const success = await deletePage(pageId, supabase)
-      if (success) {
-        const newPages = pages.filter(p => p.id !== pageId)
-        setPages(newPages)
-        if (currentPageId === pageId) {
-          handlePageSelect(newPages[0].id)
-        }
-      }
-    }
-
-    const handleDeletePageClick = (page: Page) => {
-      if (confirm(`ページ「${page.name}」を削除しますか？\n含まれるメモもすべて削除されます。`)) {
-        handleDeletePage(page.id)
-      }
-    }
-
-
     // Load pages first
-    const userPages = await getPages(user.id)
+    const userPages = await getPages(user.id, supabase)
     setPages(userPages)
     if (userPages.length > 0) {
       // Default to first page if no saved state (could save last visited page in user_settings later)
@@ -234,19 +167,25 @@ export default function HomePage() {
     setLoading(true)
     const [recipeData, categoryData] = await Promise.all([
       getRecipes(uid, pageId, supabase),
-      getCategories(uid, pageId) // getCategories defined in lib/categories needs update too? Let's check imports.
+      getCategories(uid, pageId, supabase)
     ])
 
-    // ...
+    // Get current page's order
     const currentPage = pages.find(p => p.id === pageId) || await getPages(uid, supabase).then(ps => ps.find(p => p.id === pageId))
-    // ...
+
+    setRecipes(recipeData)
+    setCategories(categoryData.map(c => ({ ...c, type: 'category' })))
+    setListOrder(currentPage?.list_order || [])
+
+    setLoading(false)
   }
 
-  // ...
 
   const handleRecipeUpdate = async (id: string, updates: Partial<Recipe>) => {
     const updatedRecipe = await updateRecipe(id, updates, supabase)
-    // ...
+    if (updatedRecipe) {
+      setRecipes(recipes.map(r => r.id === id ? updatedRecipe : r))
+    }
   }
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -294,6 +233,73 @@ export default function HomePage() {
     const updatedCategory = await dbUpdateCategory(id, newName, supabase)
     if (updatedCategory) {
       setCategories(categories.map(c => c.id === id ? { ...updatedCategory, type: 'category' } : c))
+    }
+  }
+
+
+  const handlePageSelect = async (pageId: string) => {
+    if (!userId || pageId === currentPageId) return
+    setCurrentPageId(pageId)
+    await loadPageData(userId, pageId)
+  }
+
+  const handleCreatePage = async (name: string) => {
+    if (!userId) return
+    const newPage = await createPage(userId, name, supabase)
+    if (newPage) {
+      setPages([...pages, newPage])
+      handlePageSelect(newPage.id)
+    }
+  }
+
+  const handleCreatePageSubmit = () => {
+    if (newPageName.trim()) {
+      handleCreatePage(newPageName.trim())
+      setNewPageName('')
+      setCreateDialogOpen(false)
+    }
+  }
+
+  const handleUpdatePage = async (pageId: string, name: string) => {
+    const updated = await updatePage(pageId, { name }, supabase)
+    if (updated) {
+      setPages(pages.map(p => p.id === pageId ? updated : p))
+    }
+  }
+
+  const handleRenamePageSubmit = () => {
+    if (editingPage && newPageName.trim()) {
+      handleUpdatePage(editingPage.id, newPageName.trim())
+      setNewPageName('')
+      setEditingPage(null)
+      setRenameDialogOpen(false)
+    }
+  }
+
+  const openRenameDialog = (page: Page) => {
+    setEditingPage(page)
+    setNewPageName(page.name)
+    setRenameDialogOpen(true)
+  }
+
+  const handleDeletePage = async (pageId: string) => {
+    if (pages.length <= 1) {
+      alert("最後のページは削除できません")
+      return
+    }
+    const success = await deletePage(pageId, supabase)
+    if (success) {
+      const newPages = pages.filter(p => p.id !== pageId)
+      setPages(newPages)
+      if (currentPageId === pageId) {
+        handlePageSelect(newPages[0].id)
+      }
+    }
+  }
+
+  const handleDeletePageClick = (page: Page) => {
+    if (confirm(`ページ「${page.name}」を削除しますか？\n含まれるメモもすべて削除されます。`)) {
+      handleDeletePage(page.id)
     }
   }
 
