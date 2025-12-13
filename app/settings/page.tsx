@@ -165,7 +165,7 @@ export default function SettingsPage() {
   }
 
   const loadPasskeys = async (uid: string) => {
-    const userPasskeys = await getUserPasskeys(uid)
+    const userPasskeys = await getUserPasskeys(uid, supabase)
     setPasskeys(userPasskeys)
   }
 
@@ -207,7 +207,8 @@ export default function SettingsPage() {
 
     const result = await registerPasskey(
       { email: userEmail, userId },
-      'このデバイス'
+      'このデバイス',
+      supabase
     )
 
     if (result.success) {
@@ -225,7 +226,7 @@ export default function SettingsPage() {
     if (!confirm('このパスキーを削除しますか？')) return
 
     setPasskeyLoading(true)
-    const result = await deletePasskey(passkeyId)
+    const result = await deletePasskey(passkeyId, supabase)
 
     if (result.success) {
       setPasskeyMessage('パスキーを削除しました')
@@ -241,7 +242,7 @@ export default function SettingsPage() {
   const handleUpdatePasskeyName = async (passkeyId: string, newName: string) => {
     if (!newName.trim()) return
 
-    const result = await updatePasskeyName(passkeyId, newName.trim())
+    const result = await updatePasskeyName(passkeyId, newName.trim(), supabase)
 
     if (result.success) {
       if (userId) await loadPasskeys(userId)

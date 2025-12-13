@@ -7,7 +7,8 @@
  * - Managing passkey credentials
  */
 
-import { supabase } from './supabase'
+import { supabase as defaultClient } from './supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Base64URLエンコード/デコード用ヘルパー関数
 function base64URLEncode(buffer: ArrayBuffer): string {
@@ -70,8 +71,10 @@ export function isPasskeyAvailable(): boolean {
  */
 export async function registerPasskey(
   options: PasskeyRegistrationOptions,
-  deviceName?: string
+  deviceName?: string,
+  supabaseClient?: SupabaseClient
 ): Promise<{ success: boolean; error?: string }> {
+  const supabase = supabaseClient || defaultClient
   if (!isPasskeyAvailable()) {
     return { success: false, error: 'このブラウザはパスキーをサポートしていません' }
   }
@@ -151,8 +154,10 @@ export async function registerPasskey(
  * パスキーで認証
  */
 export async function authenticateWithPasskey(
-  options: PasskeyAuthenticationOptions = {}
+  options: PasskeyAuthenticationOptions = {},
+  supabaseClient?: SupabaseClient
 ): Promise<{ success: boolean; userId?: string; credentialId?: string; error?: string }> {
+  const supabase = supabaseClient || defaultClient
   if (!isPasskeyAvailable()) {
     return { success: false, error: 'このブラウザはパスキーをサポートしていません' }
   }
@@ -218,7 +223,8 @@ export async function authenticateWithPasskey(
 /**
  * ユーザーのパスキー一覧を取得
  */
-export async function getUserPasskeys(userId: string): Promise<PasskeyCredential[]> {
+export async function getUserPasskeys(userId: string, supabaseClient?: SupabaseClient): Promise<PasskeyCredential[]> {
+  const supabase = supabaseClient || defaultClient
   const { data, error } = await supabase
     .from('passkeys')
     .select('*')
@@ -236,7 +242,8 @@ export async function getUserPasskeys(userId: string): Promise<PasskeyCredential
 /**
  * パスキーを削除
  */
-export async function deletePasskey(passkeyId: string): Promise<{ success: boolean; error?: string }> {
+export async function deletePasskey(passkeyId: string, supabaseClient?: SupabaseClient): Promise<{ success: boolean; error?: string }> {
+  const supabase = supabaseClient || defaultClient
   const { error } = await supabase
     .from('passkeys')
     .delete()
@@ -255,8 +262,10 @@ export async function deletePasskey(passkeyId: string): Promise<{ success: boole
  */
 export async function updatePasskeyName(
   passkeyId: string,
-  deviceName: string
+  deviceName: string,
+  supabaseClient?: SupabaseClient
 ): Promise<{ success: boolean; error?: string }> {
+  const supabase = supabaseClient || defaultClient
   const { error } = await supabase
     .from('passkeys')
     .update({ device_name: deviceName })
