@@ -29,7 +29,7 @@ export const RecipeMarkdown = memo(function RecipeMarkdown({
         {content.trim() ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         ) : (
-          onDoubleClick && <p className="text-gray-400 italic mt-0">ダブルクリックしてメモを追加...</p>
+          onDoubleClick && <p className="text-gray-400 italic text-xs mt-0">ダブルクリックしてメモを追加...</p>
         )}
       </div>
 
