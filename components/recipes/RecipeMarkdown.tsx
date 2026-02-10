@@ -23,7 +23,7 @@ export const RecipeMarkdown = memo(function RecipeMarkdown({
   return (
     <div className="space-y-3">
       <div 
-        className={`prose prose-sm max-w-none text-gray-700 leading-loose [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-gray-900 [&_h2]:mb-3 [&_h2]:mt-0 [&_h3]:text-base [&_h3]:font-medium [&_h3]:text-gray-800 [&_h3]:mb-2 [&_h3]:mt-4 [&_ul]:my-3 [&_ol]:my-3 [&_li]:my-1.5 [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-gray-900 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 ${onDoubleClick ? 'cursor-text' : ''} ${className}`}
+        className={`prose prose-xs max-w-none text-gray-500 text-xs leading-relaxed [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-gray-700 [&_h2]:mb-2 [&_h2]:mt-0 [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-gray-600 [&_h3]:mb-1.5 [&_h3]:mt-3 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-1 [&_p]:my-2 [&_strong]:font-semibold [&_strong]:text-gray-700 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-4 [&_ol]:pl-4 ${onDoubleClick ? 'cursor-text' : ''} ${className}`}
         onDoubleClick={onDoubleClick}
       >
         {content.trim() ? (
