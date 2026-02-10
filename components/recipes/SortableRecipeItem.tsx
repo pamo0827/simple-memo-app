@@ -198,7 +198,7 @@ export function SortableRecipeItem({
                   </p>
                 ) : (
                   <p
-                    className="truncate font-normal text-gray-400 italic text-sm cursor-text"
+                    className="truncate font-normal text-gray-400 italic text-xs cursor-text"
                     onDoubleClick={(e) => {
                       e.stopPropagation()
                       setEditingUrl(true)
@@ -274,7 +274,7 @@ export function SortableRecipeItem({
         ) : (
           recipe.name === 'タイトル' ? (
             <p
-              className="font-normal text-gray-400 italic fluid-text-base cursor-text"
+              className="font-normal text-gray-400 italic text-xs cursor-text"
               onDoubleClick={() => setEditingName(true)}
             >
               ダブルクリックでタイトルを追加...
