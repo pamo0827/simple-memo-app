@@ -119,6 +119,12 @@ export function useAuth() {
       }
 
       if (data.user && !data.session) {
+        // Supabaseはセキュリティ上、既存ユーザーでもエラーを返さずfake userを返す場合がある
+        // identitiesが空の場合、既に別の方法（Twitter等）で登録済み
+        if (data.user.identities && data.user.identities.length === 0) {
+          setError('このメールアドレスは既にTwitterで登録済みです。「Twitterでログイン」をご利用ください。')
+          return undefined
+        }
         setError('確認メールを送信しました。メールを確認してください。')
         return undefined
       }
@@ -160,7 +166,7 @@ export function useAuth() {
 
       // Pass client to registration? registerPasskey likely uses global supabase or standard fetch.
       // Need to check lib/passkey.ts if it needs the authenticated client.
-      const result = await registerPasskey({ email: user.email!, userId: user.id }, 'このデバイス')
+      const result = await registerPasskey({ email: user.email!, userId: user.id }, 'このデバイス', supabase)
       if (!result.success) throw new Error(result.error || 'パスキー登録に失敗しました')
 
       router.push('/')
