@@ -9,10 +9,11 @@
  */
 
 import type { RecipeData, ScrapeUrlRequest, UploadFileRequest, ApiResponse } from './types'
-import { supabase } from '@/lib/supabase'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 class RecipeApiService {
   private async getAuthHeaders(): Promise<HeadersInit> {
+    const supabase = createClientComponentClient()
     const { data: { session } } = await supabase.auth.getSession()
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -94,6 +95,7 @@ class RecipeApiService {
       formData.append('file', request.file)
       formData.append('skipAI', String(request.skipAI || !request.useAI))
 
+      const supabase = createClientComponentClient()
       const { data: { session } } = await supabase.auth.getSession()
       const headers: HeadersInit = {}
       if (session?.access_token) {

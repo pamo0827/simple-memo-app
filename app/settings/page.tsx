@@ -786,35 +786,6 @@ export default function SettingsPage() {
           <div className="space-y-6">
             <h2 className="text-lg font-semibold">AI設定</h2>
 
-            {isFreeTier && (
-              <div className={`${freeTierUsage >= freeTierLimit ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'} border rounded-lg p-4`}>
-                <div className="flex items-start justify-between gap-4">
-                  <p className={`text-sm ${freeTierUsage >= freeTierLimit ? 'text-red-800' : 'text-orange-800'} flex-1`}>
-                    <strong>🎁 無料枠を利用中</strong>（1日{freeTierLimit}回まで）<br />
-                    {freeTierUsage >= freeTierLimit ? (
-                      <>
-                        <span className="font-bold text-red-900">本日の無料枠を使い切りました。</span><br />
-                        独自のGemini APIキーを設定すると、今すぐ無制限でご利用いただけます。
-                      </>
-                    ) : (
-                      <>
-                        本日の使用回数: <strong>{freeTierUsage}/{freeTierLimit}回</strong><br />
-                        独自のGemini APIキーを設定すると、無制限でご利用いただけます。
-                      </>
-                    )}
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={refreshUsage}
-                    disabled={loadingUsage}
-                    className="flex-shrink-0"
-                  >
-                    {loadingUsage ? '更新中...' : '更新'}
-                  </Button>
-                </div>
-              </div>
-            )}
 
             <div className="space-y-2">
               <Label htmlFor="geminiApiKey">Gemini APIキー</Label>
